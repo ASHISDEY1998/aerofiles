@@ -103,12 +103,17 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     }
 
     if (node.isVideo) {
+      final videoItems = _displayItems.where((e) => e.isVideo).toList();
+      final index = videoItems.indexWhere((e) => e.path == node.path);
       Navigator.push(
         context,
         CupertinoPageRoute(
           builder: (_) => UniversalVideoPlayerScreen(
             title: node.name,
             playbackUri: node.path,
+            playlist: videoItems.isNotEmpty ? videoItems : [node],
+            initialIndex: index != -1 ? index : 0,
+            vfs: widget.localVfs,
           ),
         ),
       );

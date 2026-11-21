@@ -46,6 +46,9 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   bool _isSelectionMode = false;
   final Set<String> _selectedPaths = {};
 
+  // Subfolder navigation history
+  final List<String> _navigationHistory = [];
+
   @override
   void initState() {
     super.initState();
@@ -64,7 +67,10 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     }
   }
 
-  void _navigateTo(String path) {
+  void _navigateTo(String path, {bool recordHistory = true}) {
+    if (recordHistory && _currentPath != path) {
+      _navigationHistory.add(_currentPath);
+    }
     setState(() {
       _currentPath = path;
       _searchQuery = '';
@@ -73,6 +79,35 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       _isSelectionMode = false;
     });
     _loadDirectory();
+  }
+
+  bool _navigateUp() {
+    if (_isSelectionMode) {
+      setState(() {
+        _isSelectionMode = false;
+        _selectedPaths.clear();
+      });
+      return false;
+    }
+
+    if (_navigationHistory.isNotEmpty) {
+      final previousPath = _navigationHistory.removeLast();
+      _navigateTo(previousPath, recordHistory: false);
+      return false;
+    }
+
+    final root = widget.initialPath;
+    if (_currentPath != root &&
+        _currentPath.isNotEmpty &&
+        _currentPath != '/' &&
+        _currentPath != widget.vfs.rootPath) {
+      final parent = p.dirname(_currentPath);
+      final normalizedParent = (parent == '.' || parent == '/') ? '' : parent;
+      _navigateTo(normalizedParent, recordHistory: false);
+      return false;
+    }
+
+    return true; // Reached root, can exit screen
   }
 
   List<VfsNode> get _filteredAndSortedItems {
@@ -143,8 +178,10 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     }
 
     if (node.isDirectory) {
-      _navigateTo(node.path);
+      _navigateTo(node.path, recordHistory: true);
     } else if (node.isVideo) {
+      final videoItems = _filteredAndSortedItems.where((e) => e.isVideo).toList();
+      final index = videoItems.indexWhere((e) => e.path == node.path);
       final playbackUri = await widget.vfs.getPlaybackUri(node.path);
       if (!mounted) return;
       Navigator.push(
@@ -153,6 +190,9 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
           builder: (_) => UniversalVideoPlayerScreen(
             title: node.name,
             playbackUri: playbackUri,
+            playlist: videoItems.isNotEmpty ? videoItems : [node],
+            initialIndex: index != -1 ? index : 0,
+            vfs: widget.vfs,
           ),
         ),
       );
@@ -692,79 +732,101 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final displayedItems = _filteredAndSortedItems;
+    final bool isAtRoot = _navigationHistory.isEmpty &&
+        (_currentPath == widget.initialPath ||
+            _currentPath.isEmpty ||
+            _currentPath == widget.vfs.rootPath ||
+            _currentPath == '/');
 
-    return Scaffold(
-      backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
-      appBar: AppBar(
-        title: Text(
-          _isSelectionMode
-              ? '${_selectedPaths.length} Selected'
-              : (p.basename(_currentPath).isEmpty ? widget.title : p.basename(_currentPath)),
-        ),
-        leading: _isSelectionMode
-            ? IconButton(
-                icon: const Icon(CupertinoIcons.xmark),
-                onPressed: () => setState(() {
-                  _isSelectionMode = false;
-                  _selectedPaths.clear();
-                }),
-              )
-            : null,
-        actions: [
-          if (_isSelectionMode) ...[
-            TextButton(
-              onPressed: _selectAll,
-              child: Text(
-                _selectedPaths.length == displayedItems.length ? 'Deselect All' : 'Select All',
-                style: TextStyle(
-                  color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-                  fontWeight: FontWeight.w600,
+    return PopScope(
+      canPop: isAtRoot && !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final canExit = _navigateUp();
+        if (canExit && mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
+        appBar: AppBar(
+          title: Text(
+            _isSelectionMode
+                ? '${_selectedPaths.length} Selected'
+                : (p.basename(_currentPath).isEmpty ? widget.title : p.basename(_currentPath)),
+          ),
+          leading: _isSelectionMode
+              ? IconButton(
+                  icon: const Icon(CupertinoIcons.xmark),
+                  onPressed: () => setState(() {
+                    _isSelectionMode = false;
+                    _selectedPaths.clear();
+                  }),
+                )
+              : IconButton(
+                  icon: const Icon(CupertinoIcons.chevron_back),
+                  onPressed: () {
+                    final canExit = _navigateUp();
+                    if (canExit) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                ),
+          actions: [
+            if (_isSelectionMode) ...[
+              TextButton(
+                onPressed: _selectAll,
+                child: Text(
+                  _selectedPaths.length == displayedItems.length ? 'Deselect All' : 'Select All',
+                  style: TextStyle(
+                    color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-          ] else ...[
-            IconButton(
-              icon: Icon(_showSearch ? CupertinoIcons.search_circle_fill : CupertinoIcons.search),
-              onPressed: () => setState(() => _showSearch = !_showSearch),
-            ),
-            IconButton(
-              icon: Icon(_isGrid ? CupertinoIcons.list_bullet : CupertinoIcons.square_grid_2x2),
-              onPressed: () => setState(() => _isGrid = !_isGrid),
-            ),
-            IconButton(
-              icon: const Icon(CupertinoIcons.sort_down),
-              onPressed: _showSortMenu,
-            ),
-            IconButton(
-              icon: const Icon(CupertinoIcons.folder_badge_plus),
-              onPressed: _showCreateFolderDialog,
-            ),
-            IconButton(
-              icon: const Icon(CupertinoIcons.checkmark_circle),
-              tooltip: 'Select items',
-              onPressed: () => setState(() => _isSelectionMode = true),
-            ),
-          ],
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search Bar
-          if (_showSearch && !_isSelectionMode)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: CupertinoSearchTextField(
-                style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                onChanged: (val) => setState(() => _searchQuery = val),
+            ] else ...[
+              IconButton(
+                icon: Icon(_showSearch ? CupertinoIcons.search_circle_fill : CupertinoIcons.search),
+                onPressed: () => setState(() => _showSearch = !_showSearch),
               ),
-            ),
+              IconButton(
+                icon: Icon(_isGrid ? CupertinoIcons.list_bullet : CupertinoIcons.square_grid_2x2),
+                onPressed: () => setState(() => _isGrid = !_isGrid),
+              ),
+              IconButton(
+                icon: const Icon(CupertinoIcons.sort_down),
+                onPressed: _showSortMenu,
+              ),
+              IconButton(
+                icon: const Icon(CupertinoIcons.folder_badge_plus),
+                onPressed: _showCreateFolderDialog,
+              ),
+              IconButton(
+                icon: const Icon(CupertinoIcons.checkmark_circle),
+                tooltip: 'Select items',
+                onPressed: () => setState(() => _isSelectionMode = true),
+              ),
+            ],
+          ],
+        ),
+        body: Column(
+          children: [
+            // Search Bar
+            if (_showSearch && !_isSelectionMode)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: CupertinoSearchTextField(
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                  onChanged: (val) => setState(() => _searchQuery = val),
+                ),
+              ),
 
-          // Breadcrumbs
-          BreadcrumbBar(
-            currentPath: _currentPath,
-            rootPath: widget.vfs.rootPath,
-            onPathSelected: _navigateTo,
-          ),
+            // Breadcrumbs
+            BreadcrumbBar(
+              currentPath: _currentPath,
+              rootPath: widget.vfs.rootPath,
+              onPathSelected: (targetPath) => _navigateTo(targetPath, recordHistory: true),
+            ),
 
           // Content
           Expanded(
@@ -890,8 +952,9 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
             ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _toolbarButton({
     required IconData icon,
