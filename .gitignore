@@ -46,10 +46,4 @@ app.*.map.json
 *.apk
 *.aab
 
-# Python / Server
-.venv/
-*/.venv/
-__pycache__/
-*/__pycache__/
-server/storage/
 

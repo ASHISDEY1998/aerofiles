@@ -12,10 +12,6 @@
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk">
     <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.0_APK-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
-  &nbsp;&nbsp;
-  <a href="server/">
-    <img src="https://img.shields.io/badge/Home_Server_%26_iOS_PWA-Docker_%7C_CasaOS-30D158?style=for-the-badge&logo=docker&logoColor=white" alt="Home Server" />
-  </a>
 </p>
 
 <p align="center">
@@ -43,18 +39,6 @@ Get the official, standalone Release APK directly on your phone:
 2. Once the download completes, tap the notification or open the file from your **Downloads** folder.
 3. If prompted with *"Install unknown apps"*, tap **Settings** and allow installation for your browser.
 4. Tap **Install** and launch **AeroFiles** from your home screen.
-
----
-
-## 🍏 Free iOS (iPhone & iPad) Setup via Home Server
-
-AeroFiles includes a companion **Docker Home Server Web App** in [`server/`](server/) designed for **CasaOS, ZimaOS, Raspberry Pi, Unraid, and Linux NAS**:
-
-- **\$0 Apple Developer Fees:** No need for a \$99/year Apple Developer account or 7-day expiring sideload certificates.
-- **Safari PWA (Standalone Fullscreen):** On iPhone/iPad Safari, open `http://<server-ip>:8888`, tap **Share** -> **"Add to Home Screen"**. It launches as a full-screen OLED dark app with zero browser URL bars.
-- **Universal Streaming & Upload:** Direct HTTP 206 byte-range streaming for 4K/1080p movies and drag-and-drop or camera uploads directly to your server drives.
-
-👉 **[View Home Server & CasaOS Setup Guide](server/README.md)**
 
 ---
 
