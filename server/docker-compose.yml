@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   aerofiles-home:
     container_name: aerofiles-home
