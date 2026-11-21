@@ -798,6 +798,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
                                 isGrid: true,
                                 isSelectable: _isSelectionMode,
                                 isSelected: isSelected,
+                                vfs: widget.vfs,
                                 onTap: () => _handleNodeTap(node),
                                 onLongPress: () {
                                   if (!_isSelectionMode) {
@@ -821,6 +822,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
                                 isGrid: false,
                                 isSelectable: _isSelectionMode,
                                 isSelected: isSelected,
+                                vfs: widget.vfs,
                                 onTap: () => _handleNodeTap(node),
                                 onLongPress: () {
                                   if (!_isSelectionMode) {

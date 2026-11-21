@@ -713,6 +713,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                             isGrid: true,
                             isSelectable: _isSelectionMode,
                             isSelected: isSelected,
+                            vfs: widget.localVfs,
                             onTap: () => _handleNodeTap(node),
                             onLongPress: () {
                               if (!_isSelectionMode) {
@@ -736,6 +737,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                             isGrid: false,
                             isSelectable: _isSelectionMode,
                             isSelected: isSelected,
+                            vfs: widget.localVfs,
                             onTap: () => _handleNodeTap(node),
                             onLongPress: () {
                               if (!_isSelectionMode) {

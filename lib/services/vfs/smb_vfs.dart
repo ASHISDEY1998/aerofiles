@@ -83,11 +83,12 @@ class SmbVfs implements VfsProvider {
       final pool = await _getPoolForShare(shareName);
       final totalSize = await pool.fileSize(filePath);
       final rangeHeader = request.headers.value(HttpHeaders.rangeHeader);
+      final isRange = rangeHeader != null && rangeHeader.startsWith('bytes=');
 
       int start = 0;
       int end = totalSize - 1;
 
-      if (rangeHeader != null && rangeHeader.startsWith('bytes=')) {
+      if (isRange) {
         final rParts = rangeHeader.substring(6).split('-');
         if (rParts.isNotEmpty && rParts[0].isNotEmpty) {
           start = int.tryParse(rParts[0]) ?? 0;
@@ -97,14 +98,53 @@ class SmbVfs implements VfsProvider {
         }
       }
 
-      final contentLength = end - start + 1;
+      final contentLength = (end - start) + 1;
       final response = request.response;
 
-      response.statusCode = HttpStatus.partialContent;
+      // Determine accurate MIME content type
+      final ext = p.extension(filePath).toLowerCase();
+      ContentType contentType;
+      if (ext == '.jpg' || ext == '.jpeg') {
+        contentType = ContentType('image', 'jpeg');
+      } else if (ext == '.png') {
+        contentType = ContentType('image', 'png');
+      } else if (ext == '.webp') {
+        contentType = ContentType('image', 'webp');
+      } else if (ext == '.gif') {
+        contentType = ContentType('image', 'gif');
+      } else if (ext == '.bmp') {
+        contentType = ContentType('image', 'bmp');
+      } else if (ext == '.mp4' || ext == '.m4v') {
+        contentType = ContentType('video', 'mp4');
+      } else if (ext == '.mkv') {
+        contentType = ContentType('video', 'x-matroska');
+      } else if (ext == '.webm') {
+        contentType = ContentType('video', 'webm');
+      } else if (ext == '.avi') {
+        contentType = ContentType('video', 'x-msvideo');
+      } else if (ext == '.mov') {
+        contentType = ContentType('video', 'quicktime');
+      } else if (ext == '.mp3') {
+        contentType = ContentType('audio', 'mpeg');
+      } else if (ext == '.flac') {
+        contentType = ContentType('audio', 'flac');
+      } else if (ext == '.wav') {
+        contentType = ContentType('audio', 'wav');
+      } else {
+        contentType = ContentType('application', 'octet-stream');
+      }
+
+      response.headers.contentType = contentType;
       response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
-      response.headers.set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$totalSize');
+      response.headers.set('Access-Control-Allow-Origin', '*');
+
+      if (isRange) {
+        response.statusCode = HttpStatus.partialContent;
+        response.headers.set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$totalSize');
+      } else {
+        response.statusCode = HttpStatus.ok;
+      }
       response.headers.contentLength = contentLength;
-      response.headers.contentType = ContentType('video', 'mp4');
 
       // Stream in 128KB chunks for instant seeking
       const chunkSize = 128 * 1024;
@@ -121,6 +161,7 @@ class SmbVfs implements VfsProvider {
       await response.close();
     } catch (_) {
       try {
+        request.response.statusCode = HttpStatus.internalServerError;
         await request.response.close();
       } catch (_) {}
     }
@@ -280,16 +321,29 @@ class SmbVfs implements VfsProvider {
       final share = _defaultShare.isNotEmpty ? _defaultShare : segments.first;
       final sub = _defaultShare.isNotEmpty ? path : segments.skip(1).join('/');
 
+      // Do not allow deleting the share root itself
+      if (sub.isEmpty) return false;
+
       final pool = await _getPoolForShare(share);
-      final stat = await pool.stat(sub);
-      if (stat.isDirectory) {
-        await pool.rmdir(sub);
-      } else {
-        await pool.deleteFile(sub);
-      }
+      await _deleteRecursive(pool, sub);
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  Future<void> _deleteRecursive(Smb2Pool pool, String subPath) async {
+    final stat = await pool.stat(subPath);
+    if (stat.isDirectory) {
+      final children = await pool.listDirectory(subPath);
+      for (final child in children) {
+        if (child.name == '.' || child.name == '..') continue;
+        final childSub = subPath.isEmpty ? child.name : p.join(subPath, child.name);
+        await _deleteRecursive(pool, childSub);
+      }
+      await pool.rmdir(subPath);
+    } else {
+      await pool.deleteFile(subPath);
     }
   }
 

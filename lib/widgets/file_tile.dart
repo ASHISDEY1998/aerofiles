@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../models/vfs_node.dart';
+import '../services/vfs/vfs_provider.dart';
 import '../theme/apple_theme.dart';
 
 class FileTile extends StatelessWidget {
@@ -13,6 +14,7 @@ class FileTile extends StatelessWidget {
   final bool isSelectable;
   final bool isSelected;
   final ValueChanged<bool>? onSelectionChanged;
+  final VfsProvider? vfs;
 
   const FileTile({
     super.key,
@@ -24,6 +26,7 @@ class FileTile extends StatelessWidget {
     this.isSelectable = false,
     this.isSelected = false,
     this.onSelectionChanged,
+    this.vfs,
   });
 
   Widget _buildThumbnail({required double size, bool isGridMode = false, required bool isDark}) {
@@ -36,26 +39,44 @@ class FileTile extends StatelessWidget {
       );
     }
 
-    // Local image thumbnail preview
-    if (node.isImage && !node.path.startsWith('http')) {
-      final file = File(node.path);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(isGridMode ? 12 : 8),
-        child: Image.file(
-          file,
-          width: isGridMode ? double.infinity : size,
-          height: isGridMode ? 80 : size,
-          fit: BoxFit.cover,
-          cacheWidth: 160,
-          cacheHeight: 160,
-          errorBuilder: (_, _, _) => Image.asset(
-            'assets/icons/file_img.png',
-            width: size,
-            height: size,
-            fit: BoxFit.contain,
+    // Image thumbnail preview (Local or Remote SMB / WebDAV)
+    if (node.isImage) {
+      if (node.remoteStorageId != null && vfs != null) {
+        return FutureBuilder<String>(
+          future: vfs!.getPlaybackUri(node.path),
+          builder: (context, snapshot) {
+            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(isGridMode ? 10 : 6),
+                child: Image.network(
+                  snapshot.data!,
+                  width: isGridMode ? double.infinity : size,
+                  height: isGridMode ? 80 : size,
+                  fit: BoxFit.cover,
+                  cacheWidth: 160,
+                  cacheHeight: 160,
+                  errorBuilder: (_, _, _) => _fallbackIcon(size, isDark),
+                ),
+              );
+            }
+            return _fallbackIcon(size, isDark);
+          },
+        );
+      } else if (!node.path.startsWith('http')) {
+        final file = File(node.path);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(isGridMode ? 10 : 6),
+          child: Image.file(
+            file,
+            width: isGridMode ? double.infinity : size,
+            height: isGridMode ? 80 : size,
+            fit: BoxFit.cover,
+            cacheWidth: 160,
+            cacheHeight: 160,
+            errorBuilder: (_, _, _) => _fallbackIcon(size, isDark),
           ),
-        ),
-      );
+        );
+      }
     }
 
     // Dedicated file type icons from asset pack
