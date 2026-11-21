@@ -45,3 +45,11 @@ app.*.map.json
 /android/app/release
 *.apk
 *.aab
+
+# Python / Server
+.venv/
+*/.venv/
+__pycache__/
+*/__pycache__/
+server/storage/
+

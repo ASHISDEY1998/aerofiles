@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "name": "AeroFiles Home",
+  "title": {
+    "en_US": "AeroFiles Home"
+  },
+  "tagline": {
+    "en_US": "Apple-styled high performance file manager & media streaming player"
+  },
+  "description": {
+    "en_US": "Run AeroFiles on your home server with zero configuration. Stream 4K/1080p movies and music with HTTP 206 byte-range seeking, manage files, and use on iPhone, iPad, Mac, and PC via Safari PWA."
+  },
+  "icon": "https://raw.githubusercontent.com/ASHISDEY1998/aerofiles/main/playstore_assets/icon_512x512.png",
+  "port_map": "8888",
+  "scheme": "http",
+  "index": "/",
+  "author": "Ashis Dey",
+  "category": "Utilities",
+  "developer": "AeroFiles Team"
+}

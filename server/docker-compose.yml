@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  aerofiles-home:
+    container_name: aerofiles-home
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    volumes:
+      # Map your CasaOS / ZimaOS / Linux host storage drives here
+      - /DATA:/storage:rw
+      # Uncomment to mount additional hard drives or media folders:
+      # - /media:/storage/media:rw
+      # - /mnt:/storage/mnt:rw
+    environment:
+      - STORAGE_ROOT=/storage
+      - PORT=8888
