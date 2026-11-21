@@ -130,12 +130,9 @@ class FileTile extends StatelessWidget {
                 ? (isDark ? AppleColors.systemBlue.withValues(alpha: 0.25) : AppleColors.systemBlueLight.withValues(alpha: 0.15))
                 : (isDark ? AppleColors.darkCard : AppleColors.lightCard),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected
-                  ? AppleColors.systemBlue
-                  : (isDark ? AppleColors.borderStroke : AppleColors.lightBorderStroke),
-              width: isSelected ? 1.5 : 0.5,
-            ),
+            border: isSelected
+                ? Border.all(color: AppleColors.systemBlue, width: 1.5)
+                : null,
           ),
           padding: const EdgeInsets.all(8),
           child: Stack(
@@ -213,15 +210,12 @@ class FileTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
               ],
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: isDark ? AppleColors.darkElevated : AppleColors.lightElevated,
-                  borderRadius: BorderRadius.circular(10),
+              SizedBox(
+                width: 42,
+                height: 42,
+                child: Center(
+                  child: _buildThumbnail(size: 34, isDark: isDark),
                 ),
-                alignment: Alignment.center,
-                child: _buildThumbnail(size: 28, isDark: isDark),
               ),
             ],
           ),
