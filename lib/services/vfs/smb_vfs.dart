@@ -203,11 +203,8 @@ class SmbVfs implements VfsProvider {
 
     final List<VfsNode> nodes = [];
     try {
-      print('[SmbVfs] connecting to shareName="$shareName", subPath="$subPath"');
       final pool = await _getPoolForShare(shareName);
-      print('[SmbVfs] connected! listing subPath="$subPath" on share "$shareName"');
       final list = await pool.listDirectory(subPath);
-      print('[SmbVfs] returned ${list.length} items from share "$shareName"');
 
       for (final item in list) {
         if (item.name == '.' || item.name == '..') continue;
@@ -233,8 +230,7 @@ class SmbVfs implements VfsProvider {
         if (!a.isDirectory && b.isDirectory) return 1;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
-    } catch (e, stack) {
-      print('[SmbVfs] Error listing directory on share "$shareName": $e\n$stack');
+    } catch (_) {
     }
 
     return nodes;

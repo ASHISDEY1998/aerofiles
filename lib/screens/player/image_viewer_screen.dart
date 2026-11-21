@@ -60,6 +60,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     if (controller.value != Matrix4.identity()) {
       controller.value = Matrix4.identity();
     } else {
+      // ignore: deprecated_member_use
       controller.value = Matrix4.identity()..scale(2.5, 2.5, 1.0);
     }
     setState(() {});
