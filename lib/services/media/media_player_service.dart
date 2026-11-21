@@ -1,0 +1,65 @@
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+
+class MediaPlayerService {
+  static bool _initialized = false;
+
+  static void ensureInitialized() {
+    if (!_initialized) {
+      MediaKit.ensureInitialized();
+      _initialized = true;
+    }
+  }
+
+  late final Player player;
+  late final VideoController controller;
+
+  bool _isDisposed = false;
+
+  MediaPlayerService() {
+    ensureInitialized();
+    player = Player(
+      configuration: const PlayerConfiguration(
+        title: 'AeroFiles Universal Player',
+        bufferSize: 32 * 1024 * 1024, // 32MB buffer for smooth network streaming
+      ),
+    );
+    controller = VideoController(player);
+  }
+
+  Future<void> openMedia(String uri, {bool autoPlay = true}) async {
+    await player.open(
+      Media(uri),
+      play: autoPlay,
+    );
+  }
+
+  Future<void> play() => player.play();
+  Future<void> pause() => player.pause();
+  Future<void> playOrPause() => player.playOrPause();
+  Future<void> seek(Duration duration) => player.seek(duration);
+
+  Future<void> setVolume(double volume) {
+    // Volume from 0.0 to 100.0
+    return player.setVolume(volume.clamp(0.0, 100.0));
+  }
+
+  Future<void> setRate(double rate) {
+    return player.setRate(rate.clamp(0.25, 3.0));
+  }
+
+  Future<void> setAudioTrack(AudioTrack track) {
+    return player.setAudioTrack(track);
+  }
+
+  Future<void> setSubtitleTrack(SubtitleTrack track) {
+    return player.setSubtitleTrack(track);
+  }
+
+  void dispose() {
+    if (!_isDisposed) {
+      _isDisposed = true;
+      player.dispose();
+    }
+  }
+}
