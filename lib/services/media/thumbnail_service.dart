@@ -20,14 +20,12 @@ class ThumbnailService {
           .timeout(const Duration(milliseconds: 4000), onTimeout: () => null);
       final Uint8List? bytes = result is Uint8List ? result : null;
 
-      if (bytes != null) {
-        if (_keys.length >= _maxCacheSize) {
-          final oldest = _keys.removeAt(0);
-          _cache.remove(oldest);
-        }
-        _cache[path] = bytes;
-        _keys.add(path);
+      if (_keys.length >= _maxCacheSize) {
+        final oldest = _keys.removeAt(0);
+        _cache.remove(oldest);
       }
+      _cache[path] = bytes;
+      _keys.add(path);
       return bytes;
     } catch (_) {
       return null;

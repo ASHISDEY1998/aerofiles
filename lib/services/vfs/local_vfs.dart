@@ -207,14 +207,34 @@ class LocalVfs implements VfsProvider {
 
   @override
   Future<String> getPlaybackUri(String path) async {
-    final ext = p.extension(path).toLowerCase();
-    // Non-standard downloader extensions that contain MPEG-TS streams
-    if (ext == '.digital' || ext == '.stream' || ext == '.mms' || ext == '.m4s') {
-      try {
-        final file = File(path);
-        if (await file.exists()) {
+    try {
+      final file = File(path);
+      if (await file.exists() && await file.length() >= 377) {
+        final lower = path.toLowerCase();
+        bool isTs = lower.contains('.digital') ||
+            lower.contains('.stream') ||
+            lower.contains('.mms') ||
+            lower.endsWith('.ts');
+
+        if (!isTs) {
+          final raf = await file.open(mode: FileMode.read);
+          final bytes = await raf.read(1024);
+          await raf.close();
+          if (bytes.length >= 377) {
+            for (int i = 0; i <= bytes.length - 377; i++) {
+              if (bytes[i] == 0x47 &&
+                  bytes[i + 188] == 0x47 &&
+                  bytes[i + 376] == 0x47) {
+                isTs = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (isTs) {
           final tempDir = await getTemporaryDirectory();
-          final linkPath = p.join(tempDir.path, '${p.basenameWithoutExtension(path)}.ts');
+          final linkPath = p.join(tempDir.path, '${path.hashCode.toRadixString(16)}.ts');
           final link = Link(linkPath);
           if (await link.exists()) {
             await link.delete();
@@ -222,8 +242,8 @@ class LocalVfs implements VfsProvider {
           await link.create(path);
           return linkPath;
         }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
     return path;
   }
 }

@@ -639,6 +639,18 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
               ),
             ),
 
+            // Video Loading / Buffering Spinner
+            StreamBuilder<bool>(
+              stream: _mediaService.player.stream.buffering,
+              builder: (context, buffSnap) {
+                final isBuffering = buffSnap.data ?? false;
+                if (!isBuffering && !_isSwitchingVideo) return const SizedBox.shrink();
+                return const Center(
+                  child: CupertinoActivityIndicator(radius: 20, color: Colors.white),
+                );
+              },
+            ),
+
             // Visual Hardware-accelerated Brightness scrim
             if (_brightness < 1.0)
               Positioned.fill(

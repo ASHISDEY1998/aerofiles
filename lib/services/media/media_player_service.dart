@@ -49,32 +49,51 @@ class MediaPlayerService {
       configuration: const VideoControllerConfiguration(
         hwdec: 'auto-safe',
         enableHardwareAcceleration: true,
+        androidAttachSurfaceAfterVideoParameters: false,
       ),
     );
 
-    try {
-      (player.platform as dynamic)?.setProperty(
-        'demuxer-lavf-o',
-        'seg_max_retry=5,strict=experimental,allowed_extensions=ALL',
-      );
-      (player.platform as dynamic)?.setProperty('demuxer-lavf-probescore', '15');
-      (player.platform as dynamic)?.setProperty('demuxer-lavf-analyzeduration', '5.0');
-      (player.platform as dynamic)?.setProperty('demuxer-lavf-buffersize', '2097152');
-      (player.platform as dynamic)?.setProperty('force-seekable', 'yes');
-      (player.platform as dynamic)?.setProperty('hr-seek', 'default');
-    } catch (_) {}
+    _configureMpvProperties();
 
     player.stream.error.listen((error) {
       LogService.instance.error('PLAYER', 'media_kit player error: $error');
     });
   }
 
+  Future<void> _configureMpvProperties() async {
+    try {
+      final p = player.platform as dynamic;
+      if (p != null) {
+        await p.setProperty('ao', 'audiotrack,opensles,null', waitForInitialization: false);
+        await p.setProperty('video-sync', 'desync', waitForInitialization: false);
+        await p.setProperty('audio-fallback-to-null', 'yes', waitForInitialization: false);
+        await p.setProperty('audio-wait-open', '0', waitForInitialization: false);
+        await p.setProperty('ad', 'lavc:aac,lavc:*', waitForInitialization: false);
+        await p.setProperty('audio-channels', 'stereo', waitForInitialization: false);
+        await p.setProperty('audio-samplerate', '48000', waitForInitialization: false);
+        await p.setProperty('audio-pitch-correction', 'no', waitForInitialization: false);
+        await p.setProperty('demuxer-lavf-probescore', '15', waitForInitialization: false);
+        await p.setProperty('demuxer-lavf-analyzeduration', '5.0', waitForInitialization: false);
+        await p.setProperty('demuxer-lavf-buffersize', '4194304', waitForInitialization: false);
+        await p.setProperty('force-seekable', 'yes', waitForInitialization: false);
+        await p.setProperty('hr-seek', 'default', waitForInitialization: false);
+        await p.setProperty('vd-lavc-fast', 'yes', waitForInitialization: false);
+        await p.setProperty('vd-lavc-skiploopfilter', 'nonkey', waitForInitialization: false);
+        await p.setProperty('demuxer-lavf-o', 'seg_max_retry=5,strict=experimental,allowed_extensions=ALL', waitForInitialization: false);
+      }
+    } catch (_) {}
+  }
+
   Future<void> openMedia(String uri, {bool autoPlay = true}) async {
     LogService.instance.info('PLAYER', 'media_kit opening media uri: $uri');
+    await _configureMpvProperties();
     await player.open(
       Media(uri),
       play: autoPlay,
     );
+    if (autoPlay) {
+      await player.play();
+    }
   }
 
   Future<void> play() => player.play();

@@ -202,22 +202,25 @@ class FileTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (isGrid) {
-      return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected
-                ? (isDark ? AppleColors.systemBlue.withValues(alpha: 0.25) : AppleColors.systemBlueLight.withValues(alpha: 0.15))
-                : (isDark ? AppleColors.darkCard : AppleColors.lightCard),
-            borderRadius: BorderRadius.circular(16),
-            border: isSelected
-                ? Border.all(color: AppleColors.systemBlue, width: 1.5)
-                : null,
-          ),
-          padding: const EdgeInsets.all(8),
-          child: Stack(
+      return Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? (isDark ? AppleColors.systemBlue.withValues(alpha: 0.25) : AppleColors.systemBlueLight.withValues(alpha: 0.15))
+                  : (isDark ? AppleColors.darkCard : AppleColors.lightCard),
+              borderRadius: BorderRadius.circular(16),
+              border: isSelected
+                  ? Border.all(color: AppleColors.systemBlue, width: 1.5)
+                  : null,
+            ),
+            padding: const EdgeInsets.all(8),
+            child: Stack(
             children: [
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -262,8 +265,9 @@ class FileTile extends StatelessWidget {
             ],
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
     // List Tile
     return Material(

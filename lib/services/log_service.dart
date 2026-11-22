@@ -225,11 +225,29 @@ class LogService extends ChangeNotifier {
 
   Future<void> clearLogs() async {
     try {
-      if (_logFile != null && await _logFile!.exists()) {
-        await _logFile!.delete();
+      if (_logFile != null) {
+        if (await _logFile!.exists()) {
+          await _logFile!.writeAsString('', flush: true);
+          await _logFile!.delete();
+        }
       }
       _recentEntries.clear();
       _entryCount = 0;
+
+      try {
+        final cacheDir = await getTemporaryDirectory();
+        if (await cacheDir.exists()) {
+          final entities = cacheDir.listSync();
+          for (final entity in entities) {
+            if (entity is File && p.basename(entity.path).startsWith('aerofiles_')) {
+              try {
+                await entity.delete();
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+
       notifyListeners();
     } catch (_) {}
   }

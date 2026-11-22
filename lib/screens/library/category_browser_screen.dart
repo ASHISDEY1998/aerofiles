@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import '../../models/vfs_node.dart';
@@ -740,12 +741,15 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                             vfs: widget.localVfs,
                             onTap: () => _handleNodeTap(node),
                             onLongPress: () {
-                              if (!_isSelectionMode) {
-                                setState(() {
+                              HapticFeedback.mediumImpact();
+                              setState(() {
+                                if (!_isSelectionMode) {
                                   _isSelectionMode = true;
                                   _selectedPaths.add(node.path);
-                                });
-                              }
+                                } else {
+                                  _toggleSelection(node);
+                                }
+                              });
                             },
                           );
                         },
@@ -764,12 +768,15 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                             vfs: widget.localVfs,
                             onTap: () => _handleNodeTap(node),
                             onLongPress: () {
-                              if (!_isSelectionMode) {
-                                setState(() {
+                              HapticFeedback.mediumImpact();
+                              setState(() {
+                                if (!_isSelectionMode) {
                                   _isSelectionMode = true;
                                   _selectedPaths.add(node.path);
-                                });
-                              }
+                                } else {
+                                  _toggleSelection(node);
+                                }
+                              });
                             },
                             onMenuPressed: () => _showSingleNodeOptions(node),
                           );
