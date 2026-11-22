@@ -45,7 +45,7 @@ class SmbVfs implements VfsProvider {
       share: shareName,
       user: connection.isAnonymous || connection.username.isEmpty ? null : connection.username,
       password: connection.isAnonymous || connection.password.isEmpty ? null : connection.password,
-      workers: 2,
+      workers: 4,
     );
     _activePools[shareName] = pool;
     return pool;
@@ -160,19 +160,33 @@ class SmbVfs implements VfsProvider {
       }
       response.headers.contentLength = contentLength;
 
+      bool clientClosed = false;
+      response.done.catchError((_) {
+        clientClosed = true;
+      });
+
       // Stream in 128KB chunks for instant seeking
       const chunkSize = 128 * 1024;
       int current = start;
 
-      while (current <= end) {
+      while (current <= end && !clientClosed) {
         final toRead = (end - current + 1).clamp(0, chunkSize);
         final bytes = await pool.readFileRange(filePath, offset: current, length: toRead);
-        if (bytes.isEmpty) break;
-        response.add(bytes);
+        if (bytes.isEmpty || clientClosed) break;
+        try {
+          response.add(bytes);
+          await response.flush();
+        } catch (_) {
+          break; // Client aborted/closed connection
+        }
         current += bytes.length;
       }
 
-      await response.close();
+      if (!clientClosed) {
+        try {
+          await response.close();
+        } catch (_) {}
+      }
     } catch (_) {
       try {
         request.response.statusCode = HttpStatus.internalServerError;

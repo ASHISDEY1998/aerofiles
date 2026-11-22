@@ -79,7 +79,7 @@ class _HomeShellState extends State<HomeShell> {
 
     return Scaffold(
       backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
-      body: FadeIndexedStack(
+      body: IndexedStack(
         index: _currentIndex,
         children: pages,
       ),

@@ -36,6 +36,7 @@ class MediaPlayerService {
 
   Future<void> play() => player.play();
   Future<void> pause() => player.pause();
+  Future<void> stop() => player.stop();
   Future<void> playOrPause() => player.playOrPause();
   Future<void> seek(Duration duration) => player.seek(duration);
 

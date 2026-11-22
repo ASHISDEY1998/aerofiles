@@ -15,7 +15,9 @@ class ThumbnailService {
     }
 
     try {
-      final dynamic result = await _channel.invokeMethod('getVideoThumbnail', {'path': path});
+      final dynamic result = await _channel
+          .invokeMethod('getVideoThumbnail', {'path': path})
+          .timeout(const Duration(milliseconds: 1800), onTimeout: () => null);
       final Uint8List? bytes = result is Uint8List ? result : null;
 
       if (_keys.length >= _maxCacheSize) {
@@ -30,5 +32,10 @@ class ThumbnailService {
       _cache[path] = null;
       return null;
     }
+  }
+
+  void clear() {
+    _cache.clear();
+    _keys.clear();
   }
 }

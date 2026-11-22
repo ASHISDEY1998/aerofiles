@@ -1,14 +1,23 @@
 package com.aerofiles.app.aerofiles
 
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
+import android.media.ThumbnailUtils
+import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import android.util.Size
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.aerofiles.app/storage"
+    private val thumbnailExecutor = Executors.newFixedThreadPool(2)
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -53,54 +62,66 @@ class MainActivity : FlutterActivity() {
                     val path = call.argument<String>("path")
                     if (path.isNullOrEmpty()) {
                         result.success(null)
-                    } else {
-                        Thread {
-                            var retriever: android.media.MediaMetadataRetriever? = null
-                            try {
-                                retriever = android.media.MediaMetadataRetriever()
-                                if (path.startsWith("http://") || path.startsWith("https://")) {
-                                    retriever.setDataSource(path, HashMap<String, String>())
-                                } else {
-                                    retriever.setDataSource(path)
-                                }
-                                val bitmap = retriever.getFrameAtTime(1000000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                    ?: retriever.frameAtTime
-                                if (bitmap != null) {
-                                    // Scale down for thumbnail memory efficiency
-                                    val maxDim = 320
-                                    val width = bitmap.width
-                                    val height = bitmap.height
-                                    val scale = if (width > height) maxDim.toFloat() / width else maxDim.toFloat() / height
-                                    val scaledBitmap = if (scale < 1.0f) {
-                                        android.graphics.Bitmap.createScaledBitmap(
-                                            bitmap,
-                                            (width * scale).toInt().coerceAtLeast(1),
-                                            (height * scale).toInt().coerceAtLeast(1),
-                                            true
-                                        )
-                                    } else {
-                                        bitmap
-                                    }
+                        return@setMethodCallHandler
+                    }
 
-                                    val stream = java.io.ByteArrayOutputStream()
-                                    scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, stream)
-                                    val bytes = stream.toByteArray()
-                                    if (scaledBitmap != bitmap) {
-                                        scaledBitmap.recycle()
-                                    }
-                                    bitmap.recycle()
-                                    runOnUiThread { result.success(bytes) }
-                                } else {
-                                    runOnUiThread { result.success(null) }
-                                }
-                            } catch (_: Exception) {
-                                runOnUiThread { result.success(null) }
-                            } finally {
+                    val file = File(path)
+                    if (!file.exists() || !file.canRead()) {
+                        result.success(null)
+                        return@setMethodCallHandler
+                    }
+
+                    thumbnailExecutor.execute {
+                        var bitmap: Bitmap? = null
+                        var retriever: MediaMetadataRetriever? = null
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                 try {
-                                    retriever?.release()
-                                } catch (_: Exception) {}
+                                    bitmap = ThumbnailUtils.createVideoThumbnail(file, Size(320, 320), null)
+                                } catch (_: Throwable) {}
                             }
-                        }.start()
+
+                            if (bitmap == null) {
+                                retriever = MediaMetadataRetriever()
+                                retriever.setDataSource(path)
+                                bitmap = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                    ?: retriever.frameAtTime
+                            }
+
+                            if (bitmap != null) {
+                                val maxDim = 320
+                                val width = bitmap.width
+                                val height = bitmap.height
+                                val scale = if (width > height) maxDim.toFloat() / width else maxDim.toFloat() / height
+                                val scaledBitmap = if (scale < 1.0f) {
+                                    Bitmap.createScaledBitmap(
+                                        bitmap,
+                                        (width * scale).toInt().coerceAtLeast(1),
+                                        (height * scale).toInt().coerceAtLeast(1),
+                                        true
+                                    )
+                                } else {
+                                    bitmap
+                                }
+
+                                val stream = ByteArrayOutputStream()
+                                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, stream)
+                                val bytes = stream.toByteArray()
+                                if (scaledBitmap != bitmap) {
+                                    scaledBitmap.recycle()
+                                }
+                                bitmap.recycle()
+                                runOnUiThread { result.success(bytes) }
+                            } else {
+                                runOnUiThread { result.success(null) }
+                            }
+                        } catch (_: Throwable) {
+                            runOnUiThread { result.success(null) }
+                        } finally {
+                            try {
+                                retriever?.release()
+                            } catch (_: Throwable) {}
+                        }
                     }
                 }
                 else -> {

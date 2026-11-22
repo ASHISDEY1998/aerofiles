@@ -46,6 +46,12 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   double _playbackSpeed = 1.0;
   bool _isLandscape = true;
 
+  // Video aspect ratio / fit mode (Fit, Fill/Zoom, Stretch)
+  BoxFit _videoFit = BoxFit.contain;
+  String _fitLabel = 'Fit to Screen';
+  bool _showFitHudIndicator = false;
+  Timer? _fitHudTimer;
+
   // Horizontal seek gestures (Smooth seeking without middle preview box)
   Duration _dragStartPosition = Duration.zero;
   Duration _targetSeekPosition = Duration.zero;
@@ -72,11 +78,22 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     _mediaService.openMedia(_currentPlaybackUri);
     _startHideTimer();
 
-    // Auto rotate to landscape for immersive video
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // Enable immersive sticky fullscreen
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+    // On phones, auto-orient to landscape; on tablets, allow free orientation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final shortestSide = MediaQuery.of(context).size.shortestSide;
+      if (shortestSide < 600) {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      } else {
+        SystemChrome.setPreferredOrientations([]);
+      }
+    });
 
     // Initialize volume from player
     _volume = _mediaService.player.state.volume;
@@ -86,6 +103,27 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       if (completed && mounted && _hasNext) {
         _playVideoAtIndex(_currentIndex + 1);
       }
+    });
+  }
+
+  void _toggleVideoFit() {
+    setState(() {
+      if (_videoFit == BoxFit.contain) {
+        _videoFit = BoxFit.cover;
+        _fitLabel = 'Crop to Fill';
+      } else if (_videoFit == BoxFit.cover) {
+        _videoFit = BoxFit.fill;
+        _fitLabel = 'Stretch';
+      } else {
+        _videoFit = BoxFit.contain;
+        _fitLabel = 'Fit to Screen';
+      }
+      _showFitHudIndicator = true;
+    });
+
+    _fitHudTimer?.cancel();
+    _fitHudTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) setState(() => _showFitHudIndicator = false);
     });
   }
 
@@ -448,7 +486,9 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   }
 
   Future<void> _executeDeleteCurrentVideo(VfsNode node, {required bool moveToTrash}) async {
-    await _mediaService.pause();
+    // Completely stop playback and release media player decoder resources
+    await _mediaService.stop();
+    await Future.delayed(const Duration(milliseconds: 100));
     _hasDeletedAny = true;
 
     try {
@@ -496,12 +536,14 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   void dispose() {
     _hideTimer?.cancel();
     _hideVerticalHudTimer?.cancel();
+    _fitHudTimer?.cancel();
     _completedSubscription?.cancel();
     _mediaService.dispose();
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+
+    // Restore edge-to-edge UI and unlock all orientations for tablets and phones
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations([]);
+
     super.dispose();
   }
 
@@ -584,6 +626,9 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
             Center(
               child: Video(
                 controller: _mediaService.controller,
+                width: double.infinity,
+                height: double.infinity,
+                fit: _videoFit,
                 controls: NoVideoControls,
               ),
             ),
@@ -705,6 +750,42 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                 ),
               ),
 
+            // Aspect Ratio / Fit HUD Indicator
+            if (_showFitHudIndicator)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC000000),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white24, width: 0.8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _videoFit == BoxFit.contain
+                            ? Icons.aspect_ratio
+                            : _videoFit == BoxFit.cover
+                                ? CupertinoIcons.arrow_up_left_arrow_down_right
+                                : CupertinoIcons.arrow_left_right,
+                        color: AppleColors.systemBlue,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _fitLabel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // Controls Overlay
             if (_showControls) ...[
               // Top Bar
@@ -768,6 +849,19 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                         ),
                         tooltip: _isLandscape ? 'Switch to Portrait' : 'Switch to Landscape',
                         onPressed: _toggleOrientation,
+                      ),
+                      // Aspect Ratio / Fit Mode Toggle Button
+                      IconButton(
+                        icon: Icon(
+                          _videoFit == BoxFit.contain
+                              ? Icons.aspect_ratio
+                              : _videoFit == BoxFit.cover
+                                  ? CupertinoIcons.arrow_up_left_arrow_down_right
+                                  : CupertinoIcons.arrow_left_right,
+                          color: Colors.white,
+                        ),
+                        tooltip: 'Aspect Ratio: $_fitLabel',
+                        onPressed: _toggleVideoFit,
                       ),
                       // Subtitles
                       IconButton(

@@ -81,58 +81,50 @@ class FileTile extends StatelessWidget {
       }
     }
 
-    // Video thumbnail preview (Local or Remote SMB / WebDAV)
+    // Video thumbnail preview (Local storage only to protect network bandwidth)
     if (node.isVideo) {
-      final Future<String> uriFuture = (node.remoteStorageId != null && vfs != null)
-          ? vfs!.getPlaybackUri(node.path)
-          : Future.value(node.path);
+      final isLocal = node.remoteStorageId == null || node.remoteStorageId!.isEmpty;
+      if (!isLocal) {
+        return _videoIcon(size, isDark);
+      }
 
-      return FutureBuilder<String>(
-        future: uriFuture,
-        builder: (context, uriSnapshot) {
-          if (!uriSnapshot.hasData || uriSnapshot.data!.isEmpty) {
-            return _videoIcon(size, isDark);
-          }
-          final streamPath = uriSnapshot.data!;
-          return FutureBuilder<Uint8List?>(
-            future: ThumbnailService.instance.getVideoThumbnail(streamPath),
-            builder: (context, thumbSnapshot) {
-              if (thumbSnapshot.hasData && thumbSnapshot.data != null) {
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(isGridMode ? 10 : 6),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Image.memory(
-                        thumbSnapshot.data!,
-                        width: isGridMode ? double.infinity : size,
-                        height: isGridMode ? double.infinity : size,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => _videoIcon(size, isDark),
-                      ),
-                      Positioned(
-                        bottom: isGridMode ? 4 : 2,
-                        right: isGridMode ? 4 : 2,
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
-                            color: Color(0x99000000),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            CupertinoIcons.play_fill,
-                            size: isGridMode ? 12 : 8,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
+      return FutureBuilder<Uint8List?>(
+        future: ThumbnailService.instance.getVideoThumbnail(node.path),
+        builder: (context, thumbSnapshot) {
+          if (thumbSnapshot.hasData && thumbSnapshot.data != null) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(isGridMode ? 10 : 6),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Image.memory(
+                    thumbSnapshot.data!,
+                    width: isGridMode ? double.infinity : size,
+                    height: isGridMode ? double.infinity : size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _videoIcon(size, isDark),
                   ),
-                );
-              }
-              return _videoIcon(size, isDark);
-            },
-          );
+                  Positioned(
+                    bottom: isGridMode ? 4 : 2,
+                    right: isGridMode ? 4 : 2,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Color(0x99000000),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        CupertinoIcons.play_fill,
+                        size: isGridMode ? 12 : 8,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return _videoIcon(size, isDark);
         },
       );
     }
