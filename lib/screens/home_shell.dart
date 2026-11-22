@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../services/app_update_service.dart';
 import '../services/recycle_bin_service.dart';
 import '../services/vfs/local_vfs.dart';
 import '../theme/apple_theme.dart';
@@ -47,6 +48,15 @@ class _HomeShellState extends State<HomeShell> {
 
     if (mounted) {
       setState(() => _ready = true);
+
+      // Silent background update check after 3 seconds on app launch
+      Future.delayed(const Duration(seconds: 3), () async {
+        if (!mounted) return;
+        final info = await AppUpdateService.instance.checkForUpdate();
+        if (mounted && info != null && info.hasUpdate) {
+          AppUpdateService.instance.promptUpdate(context, info);
+        }
+      });
     }
   }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import '../../services/app_update_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/apple_card.dart';
@@ -14,6 +16,24 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _settings = SettingsService.instance;
+  bool _isCheckingUpdate = false;
+
+  Future<void> _handleCheckUpdate() async {
+    setState(() => _isCheckingUpdate = true);
+    final info = await AppUpdateService.instance.checkForUpdate();
+    if (!mounted) return;
+    setState(() => _isCheckingUpdate = false);
+
+    if (info != null && info.hasUpdate) {
+      AppUpdateService.instance.promptUpdate(context, info);
+    } else if (info != null) {
+      AppUpdateService.instance.showUpToDateDialog(context, info.currentVersion);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not reach update server. Check your network.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -185,12 +205,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ),
                     const Divider(height: 1, indent: 56),
-                    const ListTile(
-                      leading: Icon(CupertinoIcons.info_circle_fill),
-                      title: Text('Version'),
-                      trailing: Text(
-                        '1.0.0 (Build 1)',
-                        style: TextStyle(color: AppleColors.textSecondary),
+                    ListTile(
+                      leading: const Icon(CupertinoIcons.arrow_clockwise_circle_fill, color: AppleColors.systemBlue),
+                      title: const Text('Check for Updates'),
+                      subtitle: const Text('Auto-update directly from GitHub'),
+                      trailing: _isCheckingUpdate
+                          ? const CupertinoActivityIndicator(radius: 9)
+                          : const Icon(CupertinoIcons.chevron_right, size: 14),
+                      onTap: _isCheckingUpdate ? null : _handleCheckUpdate,
+                    ),
+                    const Divider(height: 1, indent: 56),
+                    ListTile(
+                      leading: const Icon(CupertinoIcons.info_circle_fill),
+                      title: const Text('Version'),
+                      trailing: FutureBuilder<PackageInfo>(
+                        future: PackageInfo.fromPlatform(),
+                        builder: (context, snapshot) {
+                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.0';
+                          final build = snapshot.hasData ? snapshot.data!.buildNumber : '1';
+                          return Text(
+                            '$version (Build $build)',
+                            style: const TextStyle(color: AppleColors.textSecondary),
+                          );
+                        },
                       ),
                     ),
                   ],
