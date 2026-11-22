@@ -21,10 +21,33 @@ class MediaPlayerService {
     player = Player(
       configuration: const PlayerConfiguration(
         title: 'AeroFiles Universal Player',
-        bufferSize: 32 * 1024 * 1024, // 32MB buffer for smooth network streaming
+        bufferSize: 64 * 1024 * 1024, // 64MB buffer for smooth local & network playback
+        protocolWhitelist: [
+          'file',
+          'tcp',
+          'tls',
+          'http',
+          'https',
+          'crypto',
+          'data',
+          'smb',
+          'sftp',
+          'rtmp',
+          'rtsp',
+          'hls',
+          'udp',
+          'pipe',
+          'fd',
+        ],
       ),
     );
-    controller = VideoController(player);
+    controller = VideoController(
+      player,
+      configuration: const VideoControllerConfiguration(
+        hwdec: 'auto-safe',
+        enableHardwareAcceleration: true,
+      ),
+    );
   }
 
   Future<void> openMedia(String uri, {bool autoPlay = true}) async {

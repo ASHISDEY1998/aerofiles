@@ -226,7 +226,7 @@ class LogService extends ChangeNotifier {
   Future<void> clearLogs() async {
     try {
       if (_logFile != null && await _logFile!.exists()) {
-        await _logFile!.writeAsString('', flush: true);
+        await _logFile!.delete();
       }
       _recentEntries.clear();
       _entryCount = 0;

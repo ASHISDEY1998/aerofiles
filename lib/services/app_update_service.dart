@@ -37,6 +37,7 @@ class AppUpdateService {
       'https://api.github.com/repos/ASHISDEY1998/aerofiles/releases/latest';
 
   bool _isChecking = false;
+  bool _isDialogShowing = false;
 
   static bool isNewerVersion(String remote, String local) {
     final cleanRemote = remote.replaceAll(RegExp(r'^[vV]'), '').trim();
@@ -137,6 +138,9 @@ class AppUpdateService {
   }
 
   void promptUpdate(BuildContext context, AppUpdateInfo info) {
+    if (_isDialogShowing) return;
+    _isDialogShowing = true;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showCupertinoDialog(
@@ -221,7 +225,9 @@ class AppUpdateService {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      _isDialogShowing = false;
+    });
   }
 
   void _startDownloadAndInstall(BuildContext context, AppUpdateInfo info) {

@@ -74,6 +74,7 @@ class MainActivity : FlutterActivity() {
                     thumbnailExecutor.execute {
                         var bitmap: Bitmap? = null
                         var retriever: MediaMetadataRetriever? = null
+                        var fis: java.io.FileInputStream? = null
                         try {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                 try {
@@ -82,10 +83,23 @@ class MainActivity : FlutterActivity() {
                             }
 
                             if (bitmap == null) {
-                                retriever = MediaMetadataRetriever()
-                                retriever.setDataSource(path)
-                                bitmap = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                    ?: retriever.frameAtTime
+                                try {
+                                    fis = java.io.FileInputStream(file)
+                                    retriever = MediaMetadataRetriever()
+                                    retriever.setDataSource(fis.fd)
+                                    bitmap = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                        ?: retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST)
+                                        ?: retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST)
+                                        ?: retriever.frameAtTime
+                                } catch (_: Throwable) {
+                                    try {
+                                        retriever?.release()
+                                        retriever = MediaMetadataRetriever()
+                                        retriever.setDataSource(path)
+                                        bitmap = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST)
+                                            ?: retriever.frameAtTime
+                                    } catch (_: Throwable) {}
+                                }
                             }
 
                             if (bitmap != null) {
@@ -120,6 +134,9 @@ class MainActivity : FlutterActivity() {
                         } finally {
                             try {
                                 retriever?.release()
+                            } catch (_: Throwable) {}
+                            try {
+                                fis?.close()
                             } catch (_: Throwable) {}
                         }
                     }

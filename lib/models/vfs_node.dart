@@ -43,12 +43,14 @@ class VfsNode {
     if (isDirectory) return FileCategory.folder;
     final ext = extension;
 
-    // Videos (All Universal Video Formats)
+    // Videos (All Universal Video Formats & VideoDownloader outputs)
     const videoExts = {
       '.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.webm',
       '.ts', '.m2ts', '.vob', '.ogv', '.3gp', '.rmvb', '.m4v', '.f4v',
       '.mpg', '.mpeg', '.m2v', '.amv', '.asf', '.divx', '.xvid',
-      '.mts', '.m3u8', '.h264', '.h265', '.hevc', '.av1', '.rm'
+      '.mts', '.m3u8', '.h264', '.h265', '.hevc', '.av1', '.rm',
+      '.digital', '.mms', '.stream', '.m4s', '.tp', '.trp',
+      '.mod', '.tod', '.mpv', '.m1v', '.wtv', '.dvr-ms'
     };
     if (videoExts.contains(ext) || mimeType.startsWith('video/')) {
       return FileCategory.video;

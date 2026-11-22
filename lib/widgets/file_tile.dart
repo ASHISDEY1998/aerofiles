@@ -202,9 +202,10 @@ class FileTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (isGrid) {
-      return CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: onTap,
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           decoration: BoxDecoration(
             color: isSelected
