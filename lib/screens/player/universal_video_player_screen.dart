@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../../models/vfs_node.dart';
+import '../../services/log_service.dart';
 import '../../services/media/media_player_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/vfs/local_vfs.dart';
@@ -75,6 +76,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     _currentTitle = widget.title;
     _currentPlaybackUri = widget.playbackUri;
 
+    LogService.instance.info('PLAYER', 'Opening initial video: "$_currentTitle" uri: $_currentPlaybackUri (index: $_currentIndex)');
     _mediaService.openMedia(_currentPlaybackUri);
     _startHideTimer();
 
@@ -182,8 +184,10 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
         uri = await widget.vfs!.getPlaybackUri(node.path);
       }
       _currentPlaybackUri = uri;
+      LogService.instance.info('PLAYER', 'Switching video index $index: "${node.name}" uri: $uri');
       await _mediaService.openMedia(uri);
-    } catch (e) {
+    } catch (e, st) {
+      LogService.instance.error('PLAYER', 'Error playing video at index $index: $e', e, st);
       debugPrint('Error playing video at index $index: $e');
     } finally {
       if (mounted) {
@@ -486,6 +490,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   }
 
   Future<void> _executeDeleteCurrentVideo(VfsNode node, {required bool moveToTrash}) async {
+    LogService.instance.info('PLAYER', 'Delete requested for "${node.name}" (moveToTrash: $moveToTrash)');
     // Completely stop playback and release media player decoder resources
     await _mediaService.stop();
     await Future.delayed(const Duration(milliseconds: 100));
@@ -494,6 +499,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     try {
       final vfsProvider = widget.vfs ?? LocalVfs();
       await vfsProvider.delete(node.path, moveToTrash: moveToTrash);
+      LogService.instance.info('PLAYER', 'Successfully deleted "${node.name}" from storage');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

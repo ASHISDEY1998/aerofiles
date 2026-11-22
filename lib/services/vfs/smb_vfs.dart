@@ -4,6 +4,7 @@ import 'package:dart_smb2/dart_smb2.dart';
 import 'package:path/path.dart' as p;
 import '../../models/network_connection.dart';
 import '../../models/vfs_node.dart';
+import '../log_service.dart';
 import 'vfs_provider.dart';
 
 class SmbVfs implements VfsProvider {
@@ -40,6 +41,7 @@ class SmbVfs implements VfsProvider {
       return _activePools[shareName]!;
     }
 
+    LogService.instance.info('SMB', 'Connecting to SMB host ${connection.host}, share: $shareName');
     final pool = await Smb2Pool.connect(
       host: connection.host,
       share: shareName,
@@ -48,6 +50,7 @@ class SmbVfs implements VfsProvider {
       workers: 4,
     );
     _activePools[shareName] = pool;
+    LogService.instance.info('SMB', 'Connected successfully to share: $shareName');
     return pool;
   }
 

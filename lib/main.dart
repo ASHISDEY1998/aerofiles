@@ -1,12 +1,27 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'screens/home_shell.dart';
+import 'services/log_service.dart';
 import 'services/settings_service.dart';
 import 'theme/apple_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize diagnostics logging
+  await LogService.instance.init();
+
+  // Global uncaught error hooks
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    LogService.instance.error('FLUTTER', details.exceptionAsString(), details.exception, details.stack);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    LogService.instance.error('PLATFORM', error.toString(), error, stack);
+    return false;
+  };
 
   // Initialize universal video engine (libmpv)
   MediaKit.ensureInitialized();
