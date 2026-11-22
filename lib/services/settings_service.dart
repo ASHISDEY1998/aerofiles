@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/network_connection.dart';
 
@@ -53,7 +55,7 @@ class SettingsService extends ChangeNotifier {
     _showHiddenFiles = _prefs.getBool('show_hidden_files') ?? false;
     _autoEmptyTrash = _prefs.getBool('auto_empty_trash') ?? true;
 
-    // Load saved network connections
+    // Load saved network connections (Dual persistence: SharedPreferences + Persistent File Backup)
     _savedConnections.clear();
     final connJsonStr = _prefs.getString('saved_network_connections');
     if (connJsonStr != null && connJsonStr.isNotEmpty) {
@@ -61,6 +63,28 @@ class SettingsService extends ChangeNotifier {
         final List<dynamic> list = jsonDecode(connJsonStr);
         for (final item in list) {
           _savedConnections.add(NetworkConnection.fromJson(item as Map<String, dynamic>));
+        }
+      } catch (_) {}
+    }
+
+    // Fallback: If SharedPreferences was reset during app update, restore from file backup
+    if (_savedConnections.isEmpty || _savedConnections.every((c) => c.username.isEmpty && !c.isAnonymous)) {
+      try {
+        final docsDir = await getApplicationDocumentsDirectory();
+        final backupFile = File('${docsDir.path}/network_connections_backup.json');
+        if (await backupFile.exists()) {
+          final content = await backupFile.readAsString();
+          if (content.isNotEmpty) {
+            final List<dynamic> list = jsonDecode(content);
+            if (list.isNotEmpty) {
+              _savedConnections.clear();
+              for (final item in list) {
+                _savedConnections.add(NetworkConnection.fromJson(item as Map<String, dynamic>));
+              }
+              // Resync to SharedPreferences
+              await _prefs.setString('saved_network_connections', content);
+            }
+          }
         }
       } catch (_) {}
     }
@@ -106,7 +130,15 @@ class SettingsService extends ChangeNotifier {
 
   Future<void> _persistConnections() async {
     final list = _savedConnections.map((c) => c.toJson()).toList();
-    await _prefs.setString('saved_network_connections', jsonEncode(list));
+    final jsonStr = jsonEncode(list);
+    await _prefs.setString('saved_network_connections', jsonStr);
+
+    // Write to persistent file backup so credentials and connections survive updates
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      final backupFile = File('${docsDir.path}/network_connections_backup.json');
+      await backupFile.writeAsString(jsonStr, flush: true);
+    } catch (_) {}
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

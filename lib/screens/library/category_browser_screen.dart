@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
@@ -105,7 +106,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     if (node.isVideo) {
       final videoItems = _displayItems.where((e) => e.isVideo).toList();
       final index = videoItems.indexWhere((e) => e.path == node.path);
-      Navigator.push(
+      final deleted = await Navigator.push<bool>(
         context,
         CupertinoPageRoute(
           builder: (_) => UniversalVideoPlayerScreen(
@@ -117,6 +118,17 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
           ),
         ),
       );
+      if (deleted == true && mounted) {
+        final existing = <VfsNode>[];
+        for (final item in _currentItems) {
+          if (await File(item.path).exists()) {
+            existing.add(item);
+          }
+        }
+        setState(() {
+          _currentItems = existing;
+        });
+      }
     } else if (node.isImage) {
       final allImages = _displayItems.where((e) => e.isImage).toList();
       final index = allImages.indexWhere((e) => e.path == node.path);

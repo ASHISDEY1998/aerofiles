@@ -6,6 +6,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../../models/vfs_node.dart';
 import '../../services/media/media_player_service.dart';
+import '../../services/settings_service.dart';
+import '../../services/vfs/local_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
 import '../../theme/apple_theme.dart';
 
@@ -31,11 +33,13 @@ class UniversalVideoPlayerScreen extends StatefulWidget {
 
 class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen> {
   late final MediaPlayerService _mediaService;
+  late List<VfsNode> _playlist;
   late int _currentIndex;
   late String _currentTitle;
   late String _currentPlaybackUri;
   StreamSubscription? _completedSubscription;
   bool _isSwitchingVideo = false;
+  bool _hasDeletedAny = false;
 
   bool _showControls = true;
   Timer? _hideTimer;
@@ -60,6 +64,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   void initState() {
     super.initState();
     _mediaService = MediaPlayerService();
+    _playlist = widget.playlist != null ? List<VfsNode>.from(widget.playlist!) : [];
     _currentIndex = widget.initialIndex;
     _currentTitle = widget.title;
     _currentPlaybackUri = widget.playbackUri;
@@ -118,15 +123,15 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   }
 
   bool get _hasNext =>
-      widget.playlist != null && _currentIndex < widget.playlist!.length - 1;
+      _playlist.isNotEmpty && _currentIndex < _playlist.length - 1;
 
   bool get _hasPrevious =>
-      widget.playlist != null && _currentIndex > 0;
+      _playlist.isNotEmpty && _currentIndex > 0;
 
   Future<void> _playVideoAtIndex(int index) async {
-    if (widget.playlist == null || index < 0 || index >= widget.playlist!.length) return;
+    if (_playlist.isEmpty || index < 0 || index >= _playlist.length) return;
 
-    final node = widget.playlist![index];
+    final node = _playlist[index];
     setState(() {
       _currentIndex = index;
       _currentTitle = node.name;
@@ -173,7 +178,6 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     );
 
     _targetSeekPosition = Duration(seconds: newPosSec);
-    // Instant seeking during drag for responsive playback
     _mediaService.player.seek(_targetSeekPosition);
   }
 
@@ -230,6 +234,262 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
         _startHideTimer();
       }
     });
+  }
+
+  // Delete Video Actions with identical Apple confirmation popup
+  void _confirmDeleteCurrentVideo() {
+    if (_playlist.isEmpty || _currentIndex >= _playlist.length) return;
+    final currentNode = _playlist[_currentIndex];
+    final settings = SettingsService.instance;
+    final behavior = settings.deleteBehavior;
+
+    if (behavior == DeleteBehavior.recycleBin) {
+      _executeDeleteCurrentVideo(currentNode, moveToTrash: true);
+      return;
+    } else if (behavior == DeleteBehavior.permanent) {
+      _confirmPermanentDelete(currentNode);
+      return;
+    }
+
+    bool moveToTrash = true;
+    bool rememberChoice = false;
+
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
+          return CupertinoAlertDialog(
+            title: Text('Delete "${currentNode.name}"?'),
+            content: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Choose how to delete this video:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Option 1: Move to Recycle Bin
+                  GestureDetector(
+                    onTap: () => setDialogState(() => moveToTrash = true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: moveToTrash
+                            ? (isDark
+                                ? AppleColors.systemBlue.withValues(alpha: 0.2)
+                                : AppleColors.systemBlueLight.withValues(alpha: 0.15))
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            moveToTrash ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+                            color: moveToTrash ? AppleColors.systemBlue : AppleColors.textTertiary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Move to Recycle Bin',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white : Colors.black,
+                                  ),
+                                ),
+                                Text(
+                                  'Safely restore anytime from Trash',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Option 2: Delete Permanently
+                  GestureDetector(
+                    onTap: () => setDialogState(() => moveToTrash = false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !moveToTrash
+                            ? (isDark
+                                ? AppleColors.systemRed.withValues(alpha: 0.2)
+                                : AppleColors.systemRed.withValues(alpha: 0.15))
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            !moveToTrash ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+                            color: !moveToTrash ? AppleColors.systemRed : AppleColors.textTertiary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Delete Permanently',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white : Colors.black,
+                                  ),
+                                ),
+                                Text(
+                                  'Cannot be undone. Space is freed now.',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Remember choice checkbox
+                  GestureDetector(
+                    onTap: () => setDialogState(() => rememberChoice = !rememberChoice),
+                    child: Row(
+                      children: [
+                        Icon(
+                          rememberChoice ? CupertinoIcons.checkmark_square_fill : CupertinoIcons.square,
+                          size: 18,
+                          color: rememberChoice ? AppleColors.systemBlue : AppleColors.textTertiary,
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Make this the default choice',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('Cancel'),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+              CupertinoDialogAction(
+                isDestructiveAction: !moveToTrash,
+                child: Text(moveToTrash ? 'Move to Bin' : 'Delete'),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  if (rememberChoice) {
+                    await settings.setDeleteBehavior(
+                      moveToTrash ? DeleteBehavior.recycleBin : DeleteBehavior.permanent,
+                    );
+                  }
+                  _executeDeleteCurrentVideo(currentNode, moveToTrash: moveToTrash);
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _confirmPermanentDelete(VfsNode node) {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text('Permanently delete "${node.name}"?'),
+        content: const Text('This cannot be undone and will permanently remove this video from your storage.'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Delete Permanently'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _executeDeleteCurrentVideo(node, moveToTrash: false);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executeDeleteCurrentVideo(VfsNode node, {required bool moveToTrash}) async {
+    await _mediaService.pause();
+    _hasDeletedAny = true;
+
+    try {
+      final vfsProvider = widget.vfs ?? LocalVfs();
+      await vfsProvider.delete(node.path, moveToTrash: moveToTrash);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              moveToTrash
+                  ? '"${node.name}" moved to Recycle Bin'
+                  : '"${node.name}" permanently deleted',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Remove from playlist
+      _playlist.removeAt(_currentIndex);
+
+      if (_playlist.isEmpty) {
+        // No videos left in folder/playlist, exit back to directory browser
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
+      } else {
+        // Play next video (or previous if it was the last video in the list)
+        if (_currentIndex >= _playlist.length) {
+          _currentIndex = _playlist.length - 1;
+        }
+        await _playVideoAtIndex(_currentIndex);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete video: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -301,8 +561,14 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   Widget build(BuildContext context) {
     final player = _mediaService.player;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pop(context, _hasDeletedAny);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: _toggleControls,
         onHorizontalDragStart: _onHorizontalDragStart,
@@ -464,7 +730,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                     children: [
                       CupertinoButton(
                         padding: EdgeInsets.zero,
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () => Navigator.pop(context, _hasDeletedAny),
                         child: const Icon(CupertinoIcons.chevron_back, color: Colors.white, size: 28),
                       ),
                       const SizedBox(width: 8),
@@ -483,9 +749,9 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            if (widget.playlist != null && widget.playlist!.length > 1)
+                            if (_playlist.length > 1)
                               Text(
-                                '${_currentIndex + 1} of ${widget.playlist!.length}',
+                                '${_currentIndex + 1} of ${_playlist.length}',
                                 style: const TextStyle(
                                   color: Colors.white54,
                                   fontSize: 12,
@@ -537,6 +803,12 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                               ),
                             ),
                         ],
+                      ),
+                      // Delete Current Video Button
+                      IconButton(
+                        icon: const Icon(CupertinoIcons.trash, color: Colors.white),
+                        tooltip: 'Delete Video',
+                        onPressed: _confirmDeleteCurrentVideo,
                       ),
                     ],
                   ),
@@ -701,6 +973,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

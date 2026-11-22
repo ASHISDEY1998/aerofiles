@@ -198,7 +198,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       final index = videoItems.indexWhere((e) => e.path == node.path);
       final playbackUri = await widget.vfs.getPlaybackUri(node.path);
       if (!mounted) return;
-      Navigator.push(
+      final deleted = await Navigator.push<bool>(
         context,
         CupertinoPageRoute(
           builder: (_) => UniversalVideoPlayerScreen(
@@ -210,6 +210,9 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
           ),
         ),
       );
+      if (deleted == true && mounted) {
+        _loadDirectory();
+      }
     } else if (node.isImage) {
       final allImages = _filteredAndSortedItems.where((e) => e.isImage).toList();
       final index = allImages.indexWhere((e) => e.path == node.path);
