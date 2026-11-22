@@ -702,9 +702,9 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                 : _isGrid
                     ? GridView.builder(
                         padding: const EdgeInsets.all(16),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          childAspectRatio: 0.85,
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 130,
+                          childAspectRatio: 0.82,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                         ),

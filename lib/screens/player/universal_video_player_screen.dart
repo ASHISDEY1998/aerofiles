@@ -42,13 +42,19 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   double _playbackSpeed = 1.0;
   bool _isLandscape = true;
 
-  // Gesture seeking (MX Player style)
-  bool _isDraggingSeek = false;
+  // Horizontal seek gestures (Smooth seeking without middle preview box)
   Duration _dragStartPosition = Duration.zero;
   Duration _targetSeekPosition = Duration.zero;
-  int _seekDeltaSeconds = 0;
   double _dragAccumulatedDx = 0.0;
-  Timer? _dismissOverlayTimer;
+
+  // Vertical swipe gestures (MX Player style: Left = Brightness, Right = Volume)
+  double _brightness = 1.0; // 0.1 to 1.0
+  double _volume = 100.0; // 0.0 to 100.0
+  bool _isAdjustingBrightness = false;
+  bool _isAdjustingVolume = false;
+  Timer? _hideVerticalHudTimer;
+  double _verticalDragStartY = 0.0;
+  double _verticalDragStartValue = 0.0;
 
   @override
   void initState() {
@@ -67,6 +73,9 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       DeviceOrientation.landscapeRight,
     ]);
 
+    // Initialize volume from player
+    _volume = _mediaService.player.state.volume;
+
     // Auto-advance to next video when playback finishes
     _completedSubscription = _mediaService.player.stream.completed.listen((completed) {
       if (completed && mounted && _hasNext) {
@@ -78,7 +87,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   void _startHideTimer() {
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && !_isDraggingSeek) {
+      if (mounted && !_isAdjustingBrightness && !_isAdjustingVolume) {
         setState(() => _showControls = false);
       }
     });
@@ -143,24 +152,19 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     }
   }
 
-  // MX Player horizontal drag seeking
+  // Horizontal seek gestures: seeks directly without center popup timeline card
   void _onHorizontalDragStart(DragStartDetails details) {
     _hideTimer?.cancel();
-    _dismissOverlayTimer?.cancel();
     _dragStartPosition = _mediaService.player.state.position;
     _targetSeekPosition = _dragStartPosition;
-    _seekDeltaSeconds = 0;
     _dragAccumulatedDx = 0.0;
-    setState(() {
-      _isDraggingSeek = true;
-    });
   }
 
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
     _dragAccumulatedDx += details.primaryDelta ?? 0.0;
 
-    // Sensitivity: 1 physical pixel = 0.3s seek delta
-    final deltaSec = (_dragAccumulatedDx * 0.3).round();
+    // 1 physical pixel = 0.35s seek delta
+    final deltaSec = (_dragAccumulatedDx * 0.35).round();
     final totalDuration = _mediaService.player.state.duration;
 
     final newPosSec = (_dragStartPosition.inSeconds + deltaSec).clamp(
@@ -168,18 +172,60 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       totalDuration.inSeconds > 0 ? totalDuration.inSeconds : 0,
     );
 
-    setState(() {
-      _targetSeekPosition = Duration(seconds: newPosSec);
-      _seekDeltaSeconds = newPosSec - _dragStartPosition.inSeconds;
-    });
+    _targetSeekPosition = Duration(seconds: newPosSec);
+    // Instant seeking during drag for responsive playback
+    _mediaService.player.seek(_targetSeekPosition);
   }
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     _mediaService.player.seek(_targetSeekPosition);
-    _dismissOverlayTimer = Timer(const Duration(milliseconds: 600), () {
+    _startHideTimer();
+  }
+
+  // Vertical drag gestures: Left side = Brightness, Right side = Volume
+  void _onVerticalDragStart(DragStartDetails details) {
+    _hideTimer?.cancel();
+    _hideVerticalHudTimer?.cancel();
+    final screenWidth = MediaQuery.of(context).size.width;
+    _verticalDragStartY = details.localPosition.dy;
+
+    if (details.localPosition.dx < screenWidth / 2) {
+      _isAdjustingBrightness = true;
+      _isAdjustingVolume = false;
+      _verticalDragStartValue = _brightness;
+    } else {
+      _isAdjustingVolume = true;
+      _isAdjustingBrightness = false;
+      _verticalDragStartValue = _volume;
+    }
+    setState(() {});
+  }
+
+  void _onVerticalDragUpdate(DragUpdateDetails details) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final deltaY = _verticalDragStartY - details.localPosition.dy;
+    final deltaFraction = deltaY / (screenHeight * 0.7);
+
+    if (_isAdjustingBrightness) {
+      final newBrightness = (_verticalDragStartValue + deltaFraction).clamp(0.1, 1.0);
+      setState(() {
+        _brightness = newBrightness;
+      });
+    } else if (_isAdjustingVolume) {
+      final newVolume = (_verticalDragStartValue + (deltaFraction * 100.0)).clamp(0.0, 100.0);
+      setState(() {
+        _volume = newVolume;
+      });
+      _mediaService.player.setVolume(newVolume);
+    }
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    _hideVerticalHudTimer = Timer(const Duration(milliseconds: 1200), () {
       if (mounted) {
         setState(() {
-          _isDraggingSeek = false;
+          _isAdjustingBrightness = false;
+          _isAdjustingVolume = false;
         });
         _startHideTimer();
       }
@@ -189,7 +235,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   @override
   void dispose() {
     _hideTimer?.cancel();
-    _dismissOverlayTimer?.cancel();
+    _hideVerticalHudTimer?.cancel();
     _completedSubscription?.cancel();
     _mediaService.dispose();
     SystemChrome.setPreferredOrientations([
@@ -208,12 +254,6 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       return '$hours:$minutes:$seconds';
     }
     return '$minutes:$seconds';
-  }
-
-  String _formatDelta(int deltaSeconds) {
-    final sign = deltaSeconds >= 0 ? '+' : '-';
-    final dur = Duration(seconds: deltaSeconds.abs());
-    return '$sign${_formatDuration(dur)}';
   }
 
   void _showTrackSheet({required bool isAudio}) {
@@ -268,6 +308,9 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
         onHorizontalDragStart: _onHorizontalDragStart,
         onHorizontalDragUpdate: _onHorizontalDragUpdate,
         onHorizontalDragEnd: _onHorizontalDragEnd,
+        onVerticalDragStart: _onVerticalDragStart,
+        onVerticalDragUpdate: _onVerticalDragUpdate,
+        onVerticalDragEnd: _onVerticalDragEnd,
         behavior: HitTestBehavior.opaque,
         child: Stack(
           children: [
@@ -279,86 +322,120 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
               ),
             ),
 
+            // Visual Hardware-accelerated Brightness scrim
+            if (_brightness < 1.0)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    color: Colors.black.withValues(alpha: (1.0 - _brightness).clamp(0.0, 0.85)),
+                  ),
+                ),
+              ),
+
+            // Left Brightness HUD Indicator
+            if (_isAdjustingBrightness)
+              Positioned(
+                left: 36,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xCC000000),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white24, width: 0.8),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.sun_max_fill, color: AppleColors.systemBlue, size: 24),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 110,
+                          width: 8,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: RotatedBox(
+                              quarterTurns: 3,
+                              child: LinearProgressIndicator(
+                                value: _brightness,
+                                backgroundColor: Colors.white24,
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppleColors.systemBlue),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${(_brightness * 100).toInt()}%',
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // Right Volume HUD Indicator
+            if (_isAdjustingVolume)
+              Positioned(
+                right: 36,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xCC000000),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white24, width: 0.8),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _volume == 0
+                              ? CupertinoIcons.speaker_slash_fill
+                              : _volume < 50
+                                  ? CupertinoIcons.speaker_1_fill
+                                  : CupertinoIcons.speaker_3_fill,
+                          color: AppleColors.systemBlue,
+                          size: 24,
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 110,
+                          width: 8,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: RotatedBox(
+                              quarterTurns: 3,
+                              child: LinearProgressIndicator(
+                                value: (_volume / 100.0).clamp(0.0, 1.0),
+                                backgroundColor: Colors.white24,
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppleColors.systemBlue),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${_volume.toInt()}%',
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
             // Loading spinner when switching videos
             if (_isSwitchingVideo)
               const Center(
                 child: CupertinoActivityIndicator(
                   radius: 20,
                   color: AppleColors.systemBlue,
-                ),
-              ),
-
-            // MX Player HUD Overlay for Horizontal Swipe Seeking
-            if (_isDraggingSeek)
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xDD000000),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.white24, width: 1),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black54,
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _seekDeltaSeconds >= 0
-                                ? CupertinoIcons.forward_fill
-                                : CupertinoIcons.backward_fill,
-                            color: AppleColors.systemBlue,
-                            size: 28,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatDelta(_seekDeltaSeconds),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${_formatDuration(_targetSeekPosition)} / ${_formatDuration(_mediaService.player.state.duration)}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      // Mini visual seek progress bar
-                      SizedBox(
-                        width: 150,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            value: player.state.duration.inMilliseconds > 0
-                                ? (_targetSeekPosition.inMilliseconds /
-                                        player.state.duration.inMilliseconds)
-                                    .clamp(0.0, 1.0)
-                                : 0.0,
-                            backgroundColor: Colors.white24,
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppleColors.systemBlue),
-                            minHeight: 4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
 

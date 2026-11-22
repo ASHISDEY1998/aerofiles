@@ -48,6 +48,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
 
   // Subfolder navigation history
   final List<String> _navigationHistory = [];
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -57,13 +58,26 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   }
 
   Future<void> _loadDirectory() async {
-    setState(() => _isLoading = true);
-    final list = await widget.vfs.listDirectory(_currentPath);
-    if (mounted) {
-      setState(() {
-        _items = list;
-        _isLoading = false;
-      });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final list = await widget.vfs.listDirectory(_currentPath);
+      if (mounted) {
+        setState(() {
+          _items = list;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _items = [];
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -832,26 +846,66 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CupertinoActivityIndicator())
-                : displayedItems.isEmpty
+                : _errorMessage != null
                     ? Center(
-                        child: Text(
-                          'This folder is empty',
-                          style: TextStyle(
-                            color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                CupertinoIcons.wifi_exclamationmark,
+                                size: 56,
+                                color: AppleColors.systemOrange,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Connection Failed',
+                                style: TextStyle(
+                                  color: isDark ? AppleColors.textPrimary : AppleColors.textPrimaryLight,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              CupertinoButton.filled(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                                onPressed: _loadDirectory,
+                                child: const Text('Retry Connection', style: TextStyle(fontWeight: FontWeight.w600)),
+                              ),
+                            ],
                           ),
                         ),
                       )
-                    : _isGrid
-                        ? GridView.builder(
-                            padding: const EdgeInsets.all(16),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              childAspectRatio: 0.85,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
+                    : displayedItems.isEmpty
+                        ? Center(
+                            child: Text(
+                              'This folder is empty',
+                              style: TextStyle(
+                                color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                              ),
                             ),
-                            itemCount: displayedItems.length,
-                            itemBuilder: (context, index) {
+                          )
+                        : _isGrid
+                            ? GridView.builder(
+                                padding: const EdgeInsets.all(16),
+                                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                  maxCrossAxisExtent: 130,
+                                  childAspectRatio: 0.82,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                ),
+                                itemCount: displayedItems.length,
+                                itemBuilder: (context, index) {
                               final node = displayedItems[index];
                               final isSelected = _selectedPaths.contains(node.path);
 

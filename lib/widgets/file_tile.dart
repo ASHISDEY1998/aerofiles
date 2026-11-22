@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../models/vfs_node.dart';
+import '../services/media/thumbnail_service.dart';
 import '../services/vfs/vfs_provider.dart';
 import '../theme/apple_theme.dart';
 
@@ -51,10 +53,10 @@ class FileTile extends StatelessWidget {
                 child: Image.network(
                   snapshot.data!,
                   width: isGridMode ? double.infinity : size,
-                  height: isGridMode ? 80 : size,
+                  height: isGridMode ? double.infinity : size,
                   fit: BoxFit.cover,
-                  cacheWidth: 160,
-                  cacheHeight: 160,
+                  cacheWidth: 240,
+                  cacheHeight: 240,
                   errorBuilder: (_, _, _) => _fallbackIcon(size, isDark),
                 ),
               );
@@ -69,14 +71,70 @@ class FileTile extends StatelessWidget {
           child: Image.file(
             file,
             width: isGridMode ? double.infinity : size,
-            height: isGridMode ? 80 : size,
+            height: isGridMode ? double.infinity : size,
             fit: BoxFit.cover,
-            cacheWidth: 160,
-            cacheHeight: 160,
+            cacheWidth: 240,
+            cacheHeight: 240,
             errorBuilder: (_, _, _) => _fallbackIcon(size, isDark),
           ),
         );
       }
+    }
+
+    // Video thumbnail preview (Local or Remote SMB / WebDAV)
+    if (node.isVideo) {
+      final Future<String> uriFuture = (node.remoteStorageId != null && vfs != null)
+          ? vfs!.getPlaybackUri(node.path)
+          : Future.value(node.path);
+
+      return FutureBuilder<String>(
+        future: uriFuture,
+        builder: (context, uriSnapshot) {
+          if (!uriSnapshot.hasData || uriSnapshot.data!.isEmpty) {
+            return _videoIcon(size, isDark);
+          }
+          final streamPath = uriSnapshot.data!;
+          return FutureBuilder<Uint8List?>(
+            future: ThumbnailService.instance.getVideoThumbnail(streamPath),
+            builder: (context, thumbSnapshot) {
+              if (thumbSnapshot.hasData && thumbSnapshot.data != null) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(isGridMode ? 10 : 6),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Image.memory(
+                        thumbSnapshot.data!,
+                        width: isGridMode ? double.infinity : size,
+                        height: isGridMode ? double.infinity : size,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _videoIcon(size, isDark),
+                      ),
+                      Positioned(
+                        bottom: isGridMode ? 4 : 2,
+                        right: isGridMode ? 4 : 2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Color(0x99000000),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            CupertinoIcons.play_fill,
+                            size: isGridMode ? 12 : 8,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return _videoIcon(size, isDark);
+            },
+          );
+        },
+      );
     }
 
     // Dedicated file type icons from asset pack
@@ -112,6 +170,16 @@ class FileTile extends StatelessWidget {
     }
 
     return _fallbackIcon(size, isDark);
+  }
+
+  Widget _videoIcon(double size, bool isDark) {
+    return Image.asset(
+      'assets/icons/file_vid.png',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) => _fallbackIcon(size, isDark),
+    );
   }
 
   Widget _fallbackIcon(double size, bool isDark) {

@@ -124,6 +124,20 @@ class SmbVfs implements VfsProvider {
         contentType = ContentType('video', 'x-msvideo');
       } else if (ext == '.mov') {
         contentType = ContentType('video', 'quicktime');
+      } else if (ext == '.wmv') {
+        contentType = ContentType('video', 'x-ms-wmv');
+      } else if (ext == '.flv') {
+        contentType = ContentType('video', 'x-flv');
+      } else if (ext == '.ts' || ext == '.m2ts' || ext == '.mts') {
+        contentType = ContentType('video', 'mp2t');
+      } else if (ext == '.vob') {
+        contentType = ContentType('video', 'x-ms-vob');
+      } else if (ext == '.3gp') {
+        contentType = ContentType('video', '3gpp');
+      } else if (ext == '.ogv') {
+        contentType = ContentType('video', 'ogg');
+      } else if (ext == '.mpg' || ext == '.mpeg') {
+        contentType = ContentType('video', 'mpeg');
       } else if (ext == '.mp3') {
         contentType = ContentType('audio', 'mpeg');
       } else if (ext == '.flac') {
@@ -175,14 +189,14 @@ class SmbVfs implements VfsProvider {
     if (cleanPath.startsWith('/')) cleanPath = cleanPath.substring(1);
 
     // If no default share configured AND at root level:
-    // Try share enumeration with quick 3s timeout
+    // Try share enumeration with 4s timeout
     if (_defaultShare.isEmpty && cleanPath.isEmpty) {
       try {
         final shares = await Smb2Pool.listSharesOn(
           host: connection.host,
           user: connection.isAnonymous || connection.username.isEmpty ? null : connection.username,
           password: connection.isAnonymous || connection.password.isEmpty ? null : connection.password,
-          timeoutSeconds: 3,
+          timeoutSeconds: 4,
         );
 
         final List<VfsNode> shareNodes = [];
@@ -202,26 +216,12 @@ class SmbVfs implements VfsProvider {
         }
         if (shareNodes.isNotEmpty) {
           return shareNodes;
+        } else {
+          throw Exception('No accessible shares found on ${connection.host}. Please verify permissions or specify a share name.');
         }
-      } catch (_) {}
-
-      // Fallback: If share listing failed or returned no public shares (e.g. guest mode or restricted NetShareEnum),
-      // present known storage shares for this server
-      final List<VfsNode> fallbackShares = [];
-      const known = ['Storage Drive HDD', 'ZimaOS-HD', 'DATA'];
-      for (final name in known) {
-        fallbackShares.add(
-          VfsNode(
-            path: name,
-            name: name,
-            size: 0,
-            isDirectory: true,
-            modified: DateTime.now(),
-            remoteStorageId: connection.id,
-          ),
-        );
+      } catch (e) {
+        throw Exception('Cannot connect to SMB server at ${connection.host}:${connection.port}. Check host IP, network, and credentials.');
       }
-      return fallbackShares;
     }
 
     // Determine target share and subpath

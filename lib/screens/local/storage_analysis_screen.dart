@@ -122,56 +122,7 @@ class _StorageAnalysisScreenState extends State<StorageAnalysisScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 20),
-
-                // Junk & Cache Cleaner Card
-                if (_info!.junkCacheBytes > 0) ...[
-                  AppleCard(
-                    padding: const EdgeInsets.all(16),
-                    backgroundColor: const Color(0x33FF9F0A),
-                    child: Row(
-                      children: [
-                        const Icon(CupertinoIcons.trash_circle_fill, color: AppleColors.systemOrange, size: 36),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Junk & Cache Files',
-                                style: TextStyle(
-                                  color: isDark ? Colors.white : AppleColors.textPrimaryLight,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              Text(
-                                '${StorageInfo.formatBytes(_info!.junkCacheBytes)} safe to clean',
-                                style: TextStyle(
-                                  color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        CupertinoButton(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          color: AppleColors.systemOrange,
-                          borderRadius: BorderRadius.circular(20),
-                          child: const Text('Clean', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Temporary cache files cleaned!')),
-                            );
-                            _runAnalysis();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                const SizedBox(height: 24),
 
                 // Large Files Section
                 Text(

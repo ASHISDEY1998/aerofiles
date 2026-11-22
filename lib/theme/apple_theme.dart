@@ -86,6 +86,13 @@ class AppleTheme {
         barBackgroundColor: Color(0xCC1C1C1E),
         scaffoldBackgroundColor: AppleColors.pureBlack,
       ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
     );
   }
 
@@ -127,6 +134,13 @@ class AppleTheme {
         primaryColor: AppleColors.systemBlueLight,
         barBackgroundColor: Color(0xCCFFFFFF),
         scaffoldBackgroundColor: AppleColors.lightBackground,
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
       ),
     );
   }
