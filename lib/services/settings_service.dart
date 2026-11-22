@@ -22,13 +22,23 @@ class SettingsService extends ChangeNotifier {
   DeleteBehavior _deleteBehavior = DeleteBehavior.ask;
   bool _showHiddenFiles = false;
   bool _autoEmptyTrash = true;
+  bool _isGridView = false;
   final List<NetworkConnection> _savedConnections = [];
 
   ThemeMode get themeMode => _themeMode;
   DeleteBehavior get deleteBehavior => _deleteBehavior;
   bool get showHiddenFiles => _showHiddenFiles;
   bool get autoEmptyTrash => _autoEmptyTrash;
+  bool get isGridView => _isGridView;
   List<NetworkConnection> get savedConnections => List.unmodifiable(_savedConnections);
+
+  Future<void> setGridView(bool value) async {
+    _isGridView = value;
+    try {
+      await _prefs.setBool('is_grid_view', value);
+    } catch (_) {}
+    notifyListeners();
+  }
 
   Future<void> init() async {
     if (_initialized) return;
@@ -54,6 +64,7 @@ class SettingsService extends ChangeNotifier {
 
     _showHiddenFiles = _prefs.getBool('show_hidden_files') ?? false;
     _autoEmptyTrash = _prefs.getBool('auto_empty_trash') ?? true;
+    _isGridView = _prefs.getBool('is_grid_view') ?? false;
 
     // Load saved network connections (Dual persistence: SharedPreferences + Persistent File Backup)
     _savedConnections.clear();
@@ -67,8 +78,8 @@ class SettingsService extends ChangeNotifier {
       } catch (_) {}
     }
 
-    // Fallback: If SharedPreferences was reset during app update, restore from file backup
-    if (_savedConnections.isEmpty || _savedConnections.every((c) => c.username.isEmpty && !c.isAnonymous)) {
+    // Fallback: If SharedPreferences was reset during app update, restore from on-device file backup
+    if (_savedConnections.isEmpty) {
       try {
         final docsDir = await getApplicationDocumentsDirectory();
         final backupFile = File('${docsDir.path}/network_connections_backup.json');
@@ -87,24 +98,6 @@ class SettingsService extends ChangeNotifier {
           }
         }
       } catch (_) {}
-    }
-
-    // Default connection if none saved yet
-    if (_savedConnections.isEmpty) {
-      _savedConnections.add(
-        NetworkConnection(
-          id: 'home_nas_smb',
-          name: 'Home NAS (SMB)',
-          protocol: ProtocolType.smb,
-          host: '192.168.1.41',
-          port: 445,
-          username: '',
-          password: '',
-          path: '',
-          isAnonymous: false,
-          lastConnected: DateTime.now(),
-        ),
-      );
     }
 
     _initialized = true;

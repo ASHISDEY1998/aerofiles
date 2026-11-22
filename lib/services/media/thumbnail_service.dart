@@ -17,19 +17,19 @@ class ThumbnailService {
     try {
       final dynamic result = await _channel
           .invokeMethod('getVideoThumbnail', {'path': path})
-          .timeout(const Duration(milliseconds: 3500), onTimeout: () => null);
+          .timeout(const Duration(milliseconds: 4000), onTimeout: () => null);
       final Uint8List? bytes = result is Uint8List ? result : null;
 
-      if (_keys.length >= _maxCacheSize) {
-        final oldest = _keys.removeAt(0);
-        _cache.remove(oldest);
+      if (bytes != null) {
+        if (_keys.length >= _maxCacheSize) {
+          final oldest = _keys.removeAt(0);
+          _cache.remove(oldest);
+        }
+        _cache[path] = bytes;
+        _keys.add(path);
       }
-
-      _cache[path] = bytes;
-      _keys.add(path);
       return bytes;
     } catch (_) {
-      _cache[path] = null;
       return null;
     }
   }

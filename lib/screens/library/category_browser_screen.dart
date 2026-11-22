@@ -34,7 +34,7 @@ class CategoryBrowserScreen extends StatefulWidget {
 
 class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
   late List<VfsNode> _currentItems;
-  bool _isGrid = false;
+  late bool _isGrid;
   bool _showSearch = false;
   String _searchQuery = '';
   CategorySort _sort = CategorySort.newToOld;
@@ -46,6 +46,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
   @override
   void initState() {
     super.initState();
+    _isGrid = SettingsService.instance.isGridView;
     _currentItems = List.from(widget.items);
   }
 
@@ -106,12 +107,14 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     if (node.isVideo) {
       final videoItems = _displayItems.where((e) => e.isVideo).toList();
       final index = videoItems.indexWhere((e) => e.path == node.path);
+      final playbackUri = await widget.localVfs.getPlaybackUri(node.path);
+      if (!mounted) return;
       final deleted = await Navigator.push<bool>(
         context,
         CupertinoPageRoute(
           builder: (_) => UniversalVideoPlayerScreen(
             title: node.name,
-            playbackUri: node.path,
+            playbackUri: playbackUri,
             playlist: videoItems.isNotEmpty ? videoItems : [node],
             initialIndex: index != -1 ? index : 0,
             vfs: widget.localVfs,
@@ -676,7 +679,11 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
             ),
             IconButton(
               icon: Icon(_isGrid ? CupertinoIcons.list_bullet : CupertinoIcons.square_grid_2x2),
-              onPressed: () => setState(() => _isGrid = !_isGrid),
+              onPressed: () {
+                final next = !_isGrid;
+                setState(() => _isGrid = next);
+                SettingsService.instance.setGridView(next);
+              },
             ),
             IconButton(
               icon: const Icon(CupertinoIcons.sort_down),

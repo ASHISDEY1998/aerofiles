@@ -205,10 +205,10 @@ class _NetworkTabState extends State<NetworkTab> {
     NetworkConnection? existing,
   }) {
     final nameController = TextEditingController(
-      text: existing?.name ?? prefilledName ?? 'Home Storage',
+      text: existing?.name ?? prefilledName ?? '',
     );
     final hostController = TextEditingController(
-      text: existing?.host ?? prefilledHost ?? '192.168.1.41',
+      text: existing?.host ?? prefilledHost ?? '',
     );
     final portController = TextEditingController(
       text: (existing?.port ?? prefilledPort ?? 445).toString(),
@@ -315,7 +315,7 @@ class _NetworkTabState extends State<NetworkTab> {
                     flex: 3,
                     child: CupertinoTextField(
                       controller: hostController,
-                      placeholder: 'Server IP (e.g. 192.168.1.41)',
+                      placeholder: 'Server IP (e.g. 192.168.1.100)',
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),

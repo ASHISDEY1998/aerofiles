@@ -75,6 +75,7 @@ class MainActivity : FlutterActivity() {
                         var bitmap: Bitmap? = null
                         var retriever: MediaMetadataRetriever? = null
                         var fis: java.io.FileInputStream? = null
+                        var tempLink: File? = null
                         try {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                 try {
@@ -82,9 +83,35 @@ class MainActivity : FlutterActivity() {
                                 } catch (_: Throwable) {}
                             }
 
+                            // If bitmap is null (e.g. .digital or non-standard format or MPEG-TS),
+                            // create a temporary symlink with .ts extension in cacheDir so MediaMetadataRetriever
+                            // recognizes the MPEG-TS container stream:
+                            if (bitmap == null) {
+                                try {
+                                    val safeExt = if (file.extension.equals("mp4", ignoreCase = true) ||
+                                        file.extension.equals("mkv", ignoreCase = true) ||
+                                        file.extension.equals("webm", ignoreCase = true)) {
+                                        file.extension
+                                    } else {
+                                        "ts"
+                                    }
+                                    val linkFile = File(context.cacheDir, "th_${System.currentTimeMillis()}_${file.nameWithoutExtension.take(15)}.$safeExt")
+                                    android.system.Os.symlink(file.absolutePath, linkFile.absolutePath)
+                                    tempLink = linkFile
+
+                                    retriever = MediaMetadataRetriever()
+                                    retriever.setDataSource(linkFile.absolutePath)
+                                    bitmap = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                        ?: retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST)
+                                        ?: retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST)
+                                        ?: retriever.frameAtTime
+                                } catch (_: Throwable) {}
+                            }
+
                             if (bitmap == null) {
                                 try {
                                     fis = java.io.FileInputStream(file)
+                                    retriever?.release()
                                     retriever = MediaMetadataRetriever()
                                     retriever.setDataSource(fis.fd)
                                     bitmap = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
@@ -137,6 +164,9 @@ class MainActivity : FlutterActivity() {
                             } catch (_: Throwable) {}
                             try {
                                 fis?.close()
+                            } catch (_: Throwable) {}
+                            try {
+                                tempLink?.delete()
                             } catch (_: Throwable) {}
                         }
                     }

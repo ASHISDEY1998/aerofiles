@@ -207,6 +207,23 @@ class LocalVfs implements VfsProvider {
 
   @override
   Future<String> getPlaybackUri(String path) async {
-    return path; // libmpv accepts direct native file paths or file://
+    final ext = p.extension(path).toLowerCase();
+    // Non-standard downloader extensions that contain MPEG-TS streams
+    if (ext == '.digital' || ext == '.stream' || ext == '.mms' || ext == '.m4s') {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          final tempDir = await getTemporaryDirectory();
+          final linkPath = p.join(tempDir.path, '${p.basenameWithoutExtension(path)}.ts');
+          final link = Link(linkPath);
+          if (await link.exists()) {
+            await link.delete();
+          }
+          await link.create(path);
+          return linkPath;
+        }
+      } catch (_) {}
+    }
+    return path;
   }
 }

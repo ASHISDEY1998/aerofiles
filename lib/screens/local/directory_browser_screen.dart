@@ -36,7 +36,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   late String _currentPath;
   List<VfsNode> _items = [];
   bool _isLoading = true;
-  bool _isGrid = false;
+  late bool _isGrid;
   String _searchQuery = '';
   bool _showSearch = false;
   SortBy _sortBy = SortBy.name;
@@ -53,6 +53,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   @override
   void initState() {
     super.initState();
+    _isGrid = SettingsService.instance.isGridView;
     _currentPath = widget.initialPath;
     _loadDirectory();
   }
@@ -808,7 +809,11 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
               ),
               IconButton(
                 icon: Icon(_isGrid ? CupertinoIcons.list_bullet : CupertinoIcons.square_grid_2x2),
-                onPressed: () => setState(() => _isGrid = !_isGrid),
+                onPressed: () {
+                  final next = !_isGrid;
+                  setState(() => _isGrid = next);
+                  SettingsService.instance.setGridView(next);
+                },
               ),
               IconButton(
                 icon: const Icon(CupertinoIcons.sort_down),

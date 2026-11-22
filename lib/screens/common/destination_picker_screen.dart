@@ -37,22 +37,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
   NetworkConnection? _selectedConnection;
 
   List<NetworkConnection> get _availableConnections {
-    final list = SettingsService.instance.savedConnections;
-    if (list.isNotEmpty) return list;
-    return [
-      NetworkConnection(
-        id: 'home_nas_smb',
-        name: 'Home NAS (SMB)',
-        protocol: ProtocolType.smb,
-        host: '192.168.1.41',
-        port: 445,
-        username: '',
-        password: '',
-        path: '',
-        isAnonymous: false,
-        lastConnected: DateTime.now(),
-      ),
-    ];
+    return SettingsService.instance.savedConnections;
   }
 
   @override
