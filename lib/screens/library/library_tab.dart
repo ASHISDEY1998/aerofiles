@@ -165,6 +165,11 @@ class _LibraryTabState extends State<LibraryTab> {
       sizeStr = '${(totalBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
     }
 
+    final folderCount = items.map((e) => p.dirname(e.path)).toSet().length;
+    final countLabel = folderCount > 1
+        ? '${items.length} files in $folderCount folders • $sizeStr'
+        : '${items.length} files • $sizeStr';
+
     return AppleCard(
       onTap: () => _openCategory(title, items),
       padding: const EdgeInsets.all(16),
@@ -187,21 +192,34 @@ class _LibraryTabState extends State<LibraryTab> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: AppleColors.textPrimary,
+                  style: TextStyle(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? AppleColors.textPrimary
+                        : AppleColors.textPrimaryLight,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${items.length} files • $sizeStr',
-                  style: const TextStyle(color: AppleColors.textSecondary, fontSize: 12),
+                  countLabel,
+                  style: TextStyle(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? AppleColors.textSecondary
+                        : AppleColors.textSecondaryLight,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
           ),
-          const Icon(CupertinoIcons.chevron_right, size: 16, color: AppleColors.textTertiary),
+          Icon(
+            CupertinoIcons.chevron_right,
+            size: 16,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? AppleColors.textTertiary
+                : AppleColors.textTertiaryLight,
+          ),
         ],
       ),
     );

@@ -6,16 +6,39 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import '../../models/vfs_node.dart';
 import '../../services/file_operation_service.dart';
+import '../../services/media/thumbnail_service.dart';
+import '../../services/recycle_bin_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/vfs/local_vfs.dart';
-import '../../services/vfs/vfs_provider.dart';
 import '../../theme/apple_theme.dart';
+import '../../widgets/apple_card.dart';
 import '../../widgets/file_tile.dart';
 import '../common/destination_picker_screen.dart';
 import '../player/image_viewer_screen.dart';
 import '../player/universal_video_player_screen.dart';
 
 enum CategorySort { newToOld, oldToNew, nameAsc, nameDesc, sizeDesc, sizeAsc }
+enum CategoryViewMode { folders, allFiles }
+
+class MediaFolderGroup {
+  final String folderPath;
+  final String folderName;
+  final String displayPath;
+  final List<VfsNode> items;
+  final int totalBytes;
+  final DateTime latestModified;
+  final VfsNode previewNode;
+
+  MediaFolderGroup({
+    required this.folderPath,
+    required this.folderName,
+    required this.displayPath,
+    required this.items,
+    required this.totalBytes,
+    required this.latestModified,
+    required this.previewNode,
+  });
+}
 
 class CategoryBrowserScreen extends StatefulWidget {
   final String title;
@@ -39,6 +62,9 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
   bool _showSearch = false;
   String _searchQuery = '';
   CategorySort _sort = CategorySort.newToOld;
+  CategoryViewMode _viewMode = CategoryViewMode.folders;
+  MediaFolderGroup? _selectedFolderGroup;
+  String? _filterFolderChip;
 
   // Multi-select state
   bool _isSelectionMode = false;
@@ -51,8 +77,92 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     _currentItems = List.from(widget.items);
   }
 
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  List<MediaFolderGroup> get _folderGroups {
+    final Map<String, List<VfsNode>> map = {};
+    for (final node in _currentItems) {
+      final parentDir = p.dirname(node.path);
+      map.putIfAbsent(parentDir, () => []).add(node);
+    }
+
+    final root = widget.localVfs.rootPath;
+    final List<MediaFolderGroup> groups = [];
+
+    for (final entry in map.entries) {
+      final dirPath = entry.key;
+      final items = entry.value;
+
+      final folderName = p.basename(dirPath).isEmpty ? 'Root' : p.basename(dirPath);
+
+      String relPath = dirPath;
+      if (dirPath.startsWith(root)) {
+        relPath = dirPath.substring(root.length);
+        if (relPath.startsWith('/')) relPath = relPath.substring(1);
+      }
+      if (relPath.isEmpty) relPath = folderName;
+
+      items.sort((a, b) => b.modified.compareTo(a.modified));
+
+      int totalBytes = 0;
+      for (final it in items) {
+        totalBytes += it.size;
+      }
+
+      groups.add(MediaFolderGroup(
+        folderPath: dirPath,
+        folderName: folderName,
+        displayPath: relPath,
+        items: items,
+        totalBytes: totalBytes,
+        latestModified: items.isNotEmpty ? items.first.modified : DateTime.now(),
+        previewNode: items.first,
+      ));
+    }
+
+    var result = groups;
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((g) =>
+          g.folderName.toLowerCase().contains(q) ||
+          g.displayPath.toLowerCase().contains(q) ||
+          g.items.any((it) => it.name.toLowerCase().contains(q))).toList();
+    }
+
+    result.sort((a, b) {
+      switch (_sort) {
+        case CategorySort.newToOld:
+          return b.latestModified.compareTo(a.latestModified);
+        case CategorySort.oldToNew:
+          return a.latestModified.compareTo(b.latestModified);
+        case CategorySort.nameAsc:
+          return a.folderName.toLowerCase().compareTo(b.folderName.toLowerCase());
+        case CategorySort.nameDesc:
+          return b.folderName.toLowerCase().compareTo(a.folderName.toLowerCase());
+        case CategorySort.sizeDesc:
+          return b.totalBytes.compareTo(a.totalBytes);
+        case CategorySort.sizeAsc:
+          return a.totalBytes.compareTo(b.totalBytes);
+      }
+    });
+
+    return result;
+  }
+
   List<VfsNode> get _displayItems {
     var list = _currentItems;
+
+    if (_selectedFolderGroup != null) {
+      list = list.where((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath).toList();
+    } else if (_filterFolderChip != null && _filterFolderChip!.isNotEmpty) {
+      list = list.where((e) => p.dirname(e.path) == _filterFolderChip).toList();
+    }
+
     if (_searchQuery.isNotEmpty) {
       list = list.where((e) => e.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
     }
@@ -131,6 +241,10 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
         }
         setState(() {
           _currentItems = existing;
+          if (_selectedFolderGroup != null &&
+              !existing.any((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath)) {
+            _selectedFolderGroup = null;
+          }
         });
       }
     } else if (node.isImage) {
@@ -228,9 +342,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
       return;
     }
 
-    // Otherwise behavior is DeleteBehavior.ask: show full delete prompt
     bool moveToTrash = true;
-    bool rememberChoice = false;
 
     showCupertinoDialog(
       context: context,
@@ -253,99 +365,101 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-
-                  // Option 1: Move to Recycle Bin
                   GestureDetector(
                     onTap: () => setDialogState(() => moveToTrash = true),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: moveToTrash
-                            ? (isDark
-                                ? AppleColors.systemBlue.withValues(alpha: 0.2)
-                                : AppleColors.systemBlueLight.withValues(alpha: 0.15))
+                            ? (isDark ? AppleColors.systemBlue.withValues(alpha: 0.15) : AppleColors.systemBlueLight.withValues(alpha: 0.1))
                             : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: moveToTrash ? AppleColors.systemBlue : Colors.transparent,
+                          width: 1.5,
+                        ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            moveToTrash ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-                            color: moveToTrash ? AppleColors.systemBlue : AppleColors.textTertiary,
+                            CupertinoIcons.trash,
+                            color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
                             size: 20,
                           ),
-                          const SizedBox(width: 8),
-                          const Expanded(
+                          const SizedBox(width: 10),
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Move to Recycle Bin', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                Text('Can be restored anytime', style: TextStyle(fontSize: 11, color: AppleColors.textSecondary)),
+                                Text(
+                                  'Move to Recycle Bin',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                                  ),
+                                ),
+                                Text(
+                                  'Can be restored later if needed',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
+                          if (moveToTrash)
+                            const Icon(CupertinoIcons.checkmark_circle_fill, color: AppleColors.systemBlue, size: 20),
                         ],
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: 6),
-
-                  // Option 2: Delete Permanently
+                  const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () => setDialogState(() => moveToTrash = false),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: !moveToTrash
-                            ? (isDark
-                                ? AppleColors.systemRed.withValues(alpha: 0.2)
-                                : AppleColors.systemRed.withValues(alpha: 0.15))
+                            ? (isDark ? AppleColors.systemRed.withValues(alpha: 0.15) : AppleColors.systemRed.withValues(alpha: 0.1))
                             : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: !moveToTrash ? AppleColors.systemRed : Colors.transparent,
+                          width: 1.5,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            !moveToTrash ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-                            color: !moveToTrash ? AppleColors.systemRed : AppleColors.textTertiary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          const Expanded(
+                          const Icon(CupertinoIcons.trash_fill, color: AppleColors.systemRed, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Delete Permanently', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                Text('Cannot be restored', style: TextStyle(fontSize: 11, color: AppleColors.textSecondary)),
+                                Text(
+                                  'Permanently Delete',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                                  ),
+                                ),
+                                Text(
+                                  'Irreversible; immediately frees up storage',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
+                          if (!moveToTrash)
+                            const Icon(CupertinoIcons.checkmark_circle_fill, color: AppleColors.systemRed, size: 20),
                         ],
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // Remember choice
-                  GestureDetector(
-                    onTap: () => setDialogState(() => rememberChoice = !rememberChoice),
-                    child: Row(
-                      children: [
-                        Icon(
-                          rememberChoice ? CupertinoIcons.checkmark_square_fill : CupertinoIcons.square,
-                          size: 18,
-                          color: rememberChoice ? AppleColors.systemBlue : AppleColors.textTertiary,
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'Make this the default choice',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ],
@@ -358,14 +472,9 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
               ),
               CupertinoDialogAction(
                 isDestructiveAction: !moveToTrash,
-                child: Text(moveToTrash ? 'Move to Bin' : 'Delete'),
-                onPressed: () async {
+                child: Text(moveToTrash ? 'Move to Bin' : 'Delete Forever'),
+                onPressed: () {
                   Navigator.pop(ctx);
-                  if (rememberChoice) {
-                    await settings.setDeleteBehavior(
-                      moveToTrash ? DeleteBehavior.recycleBin : DeleteBehavior.permanent,
-                    );
-                  }
                   _executeBatchDelete(selected, moveToTrash: moveToTrash);
                 },
               ),
@@ -408,17 +517,51 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
       _currentItems.removeWhere((e) => _selectedPaths.contains(e.path));
       _selectedPaths.clear();
       _isSelectionMode = false;
+      if (_selectedFolderGroup != null &&
+          !_currentItems.any((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath)) {
+        _selectedFolderGroup = null;
+      }
     });
+
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            moveToTrash
-                ? '${selected.length} items moved to Recycle Bin'
-                : '${selected.length} items permanently deleted',
+      if (moveToTrash) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${selected.length} item${selected.length == 1 ? '' : 's'} moved to Recycle Bin'),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: AppleColors.systemBlue,
+              onPressed: () async {
+                final restored = await RecycleBinService.instance.restoreRecentlyTrashed();
+                if (mounted && restored > 0) {
+                  final existing = <VfsNode>[];
+                  for (final item in widget.items) {
+                    if (await File(item.path).exists()) {
+                      existing.add(item);
+                    }
+                  }
+                  setState(() => _currentItems = existing);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Restored $restored item${restored == 1 ? '' : 's'}'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${selected.length} items permanently deleted'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -437,52 +580,79 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
       ),
     );
 
-    if (result != null && mounted) {
-      final targetPath = result['targetPath'] as String;
-      final targetVfs = result['targetVfs'] as VfsProvider;
+    if (result == null || !mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${isMove ? "Moving" : "Copying"} ${selected.length} items to ${targetVfs.displayName}...',
+    final targetPath = result['path'] as String;
+    final targetVfs = result['vfs'];
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? AppleColors.darkCard : AppleColors.lightCard,
+            borderRadius: BorderRadius.circular(16),
           ),
-          duration: const Duration(seconds: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CupertinoActivityIndicator(radius: 14),
+              const SizedBox(height: 16),
+              Text(
+                isMove ? 'Moving items...' : 'Copying items...',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
-      );
+      ),
+    );
 
-      final ops = FileOperationService.instance;
-      if (isMove) {
-        await ops.moveItems(
-          items: selected,
-          targetDirPath: targetPath,
-          targetVfs: targetVfs,
-          sourceVfs: widget.localVfs,
-        );
+    final success = isMove
+        ? await FileOperationService.instance.moveItems(
+            items: selected,
+            targetDirPath: targetPath,
+            targetVfs: targetVfs,
+            sourceVfs: widget.localVfs,
+          )
+        : await FileOperationService.instance.copyItems(
+            items: selected,
+            targetDirPath: targetPath,
+            targetVfs: targetVfs,
+            sourceVfs: widget.localVfs,
+          );
+
+    if (mounted) {
+      Navigator.pop(context); // Dismiss progress
+      if (isMove && success) {
         setState(() {
           _currentItems.removeWhere((e) => _selectedPaths.contains(e.path));
           _selectedPaths.clear();
           _isSelectionMode = false;
         });
       } else {
-        await ops.copyItems(
-          items: selected,
-          targetDirPath: targetPath,
-          targetVfs: targetVfs,
-          sourceVfs: widget.localVfs,
-        );
         setState(() {
           _selectedPaths.clear();
           _isSelectionMode = false;
         });
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${selected.length} items successfully ${isMove ? "moved" : "copied"}!'),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success
+                ? (isMove ? 'Moved ${selected.length} items' : 'Copied ${selected.length} items')
+                : 'Operation completed with some errors',
           ),
-        );
-      }
+        ),
+      );
     }
   }
 
@@ -490,23 +660,9 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: Text(node.name),
-        message: Text(node.formattedSize),
+        title: Text(node.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        message: Text('${_formatBytes(node.size)} • ${p.dirname(node.path)}'),
         actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(ctx);
-              FileOperationService.instance.showFileInfo(context, node);
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(CupertinoIcons.info_circle, size: 18),
-                SizedBox(width: 8),
-                Text('File Details'),
-              ],
-            ),
-          ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(ctx);
@@ -611,30 +767,346 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
             onPressed: () => Navigator.pop(ctx),
           ),
           CupertinoDialogAction(
-            child: const Text('Rename'),
+            child: const Text('Save'),
             onPressed: () async {
               final newName = controller.text.trim();
               if (newName.isNotEmpty && newName != node.name) {
-                Navigator.pop(ctx);
-                final renamed = await widget.localVfs.rename(node.path, newName);
-                if (renamed && mounted) {
-                  setState(() {
-                    final idx = _currentItems.indexWhere((e) => e.path == node.path);
-                    if (idx != -1) {
+                final parent = p.dirname(node.path);
+                final newPath = p.join(parent, newName);
+                final ok = await widget.localVfs.rename(node.path, newPath);
+                if (ok && mounted) {
+                  final idx = _currentItems.indexWhere((e) => e.path == node.path);
+                  if (idx != -1) {
+                    setState(() {
                       _currentItems[idx] = VfsNode(
-                        path: p.join(p.dirname(node.path), newName),
+                        path: newPath,
                         name: newName,
                         size: node.size,
                         isDirectory: node.isDirectory,
                         modified: DateTime.now(),
                       );
-                    }
-                  });
+                    });
+                  }
                 }
               }
+              if (ctx.mounted) Navigator.pop(ctx);
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFallbackFolderIcon(VfsNode node) {
+    Color iconColor = AppleColors.systemBlue;
+    IconData iconData = CupertinoIcons.folder_fill;
+    if (node.isVideo) {
+      iconColor = AppleColors.catVideos;
+      iconData = CupertinoIcons.play_rectangle_fill;
+    } else if (node.isImage) {
+      iconColor = AppleColors.catImages;
+      iconData = CupertinoIcons.photo_fill;
+    } else if (node.isAudio) {
+      iconColor = AppleColors.catAudio;
+      iconData = CupertinoIcons.music_note_2;
+    } else if (node.isDocument) {
+      iconColor = AppleColors.catDocs;
+      iconData = CupertinoIcons.doc_text_fill;
+    }
+    return Container(
+      color: iconColor.withValues(alpha: 0.12),
+      alignment: Alignment.center,
+      child: Icon(iconData, size: 36, color: iconColor),
+    );
+  }
+
+  Widget _buildFolderThumbnail(MediaFolderGroup group) {
+    final node = group.previewNode;
+    if (node.isVideo) {
+      return FutureBuilder<Uint8List?>(
+        future: ThumbnailService.instance.getVideoThumbnail(node.path),
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data != null) {
+            return Image.memory(
+              snapshot.data!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            );
+          }
+          return _buildFallbackFolderIcon(node);
+        },
+      );
+    } else if (node.isImage) {
+      return Image.file(
+        File(node.path),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (ctx, err, stack) => _buildFallbackFolderIcon(node),
+      );
+    }
+    return _buildFallbackFolderIcon(node);
+  }
+
+  Widget _buildFolderGridCard(MediaFolderGroup folder, bool isDark) {
+    return AppleCard(
+      onTap: () => setState(() => _selectedFolderGroup = folder),
+      padding: EdgeInsets.zero,
+      borderRadius: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Thumbnail Preview with overlay badge
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildFolderThumbnail(folder),
+                  // Dark bottom gradient for readability
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 36,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.transparent, Color(0x99000000)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Top-left Folder Pill Badge
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(CupertinoIcons.folder_fill, size: 11, color: AppleColors.systemBlue),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${folder.items.length}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Top-right video badge if applicable
+                  if (folder.previewNode.isVideo)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.75),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(CupertinoIcons.play_fill, size: 10, color: Colors.white),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Folder Details
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  folder.folderName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${folder.items.length} items • ${_formatBytes(folder.totalBytes)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  folder.displayPath,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFolderListTile(MediaFolderGroup folder, bool isDark) {
+    return AppleCard(
+      onTap: () => setState(() => _selectedFolderGroup = folder),
+      padding: const EdgeInsets.all(12),
+      borderRadius: 14,
+      child: Row(
+        children: [
+          // Preview Thumbnail
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 58,
+              height: 58,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildFolderThumbnail(folder),
+                  if (folder.previewNode.isVideo)
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(CupertinoIcons.play_fill, size: 12, color: Colors.white),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // Folder info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  folder.folderName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${folder.items.length} items • ${_formatBytes(folder.totalBytes)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  folder.displayPath,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            CupertinoIcons.chevron_right,
+            size: 16,
+            color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFolderChipsBar(bool isDark) {
+    final groups = _folderGroups;
+    if (groups.length <= 1) return const SizedBox.shrink();
+
+    return Container(
+      height: 44,
+      margin: const EdgeInsets.only(bottom: 6),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: groups.length + 1,
+        separatorBuilder: (context, i) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final isAll = index == 0;
+          final isSelected = isAll ? (_filterFolderChip == null) : (_filterFolderChip == groups[index - 1].folderPath);
+          final label = isAll ? 'All (${_currentItems.length})' : '${groups[index - 1].folderName} (${groups[index - 1].items.length})';
+
+          return Center(
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () {
+                  setState(() {
+                    _filterFolderChip = isAll ? null : groups[index - 1].folderPath;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? (isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight)
+                        : (isDark ? AppleColors.darkElevated : AppleColors.lightElevated),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.transparent
+                          : (isDark ? AppleColors.borderStroke : AppleColors.lightBorderStroke),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      color: isSelected ? Colors.white : (isDark ? AppleColors.textPrimary : AppleColors.textPrimaryLight),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -643,198 +1115,326 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final displayedItems = _displayItems;
+    final folderGroups = _folderGroups;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
-      appBar: AppBar(
-        title: Text(
-          _isSelectionMode
-              ? '${_selectedPaths.length} Selected'
-              : '${widget.title} (${displayedItems.length})',
-        ),
-        leading: _isSelectionMode
-            ? IconButton(
-                icon: const Icon(CupertinoIcons.xmark),
-                onPressed: () => setState(() {
-                  _isSelectionMode = false;
-                  _selectedPaths.clear();
-                }),
-              )
-            : null,
-        actions: [
-          if (_isSelectionMode) ...[
-            TextButton(
-              onPressed: _selectAll,
-              child: Text(
-                _selectedPaths.length == displayedItems.length ? 'Deselect All' : 'Select All',
-                style: TextStyle(
-                  color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ] else ...[
-            IconButton(
-              icon: Icon(_showSearch ? CupertinoIcons.search_circle_fill : CupertinoIcons.search),
-              onPressed: () => setState(() => _showSearch = !_showSearch),
-            ),
-            IconButton(
-              icon: Icon(_isGrid ? CupertinoIcons.list_bullet : CupertinoIcons.square_grid_2x2),
-              onPressed: () {
-                final next = !_isGrid;
-                setState(() => _isGrid = next);
-                SettingsService.instance.setGridView(next);
-              },
-            ),
-            IconButton(
-              icon: const Icon(CupertinoIcons.sort_down),
-              onPressed: _showSortMenu,
-            ),
-            IconButton(
-              icon: const Icon(CupertinoIcons.checkmark_circle),
-              tooltip: 'Select items',
-              onPressed: () => setState(() => _isSelectionMode = true),
-            ),
-          ],
-        ],
-      ),
-      body: Column(
-        children: [
-          if (_showSearch && !_isSelectionMode)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: CupertinoSearchTextField(
-                style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                onChanged: (val) => setState(() => _searchQuery = val),
-              ),
-            ),
+    final isViewingFolderDetail = _selectedFolderGroup != null;
+    final isFolderMode = _viewMode == CategoryViewMode.folders && !isViewingFolderDetail;
 
-          Expanded(
-            child: displayedItems.isEmpty
-                ? Center(
-                    child: Text(
-                      'No files found',
-                      style: TextStyle(
-                        color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
-                      ),
-                    ),
-                  )
-                : _isGrid
-                    ? GridView.builder(
-                        padding: const EdgeInsets.all(16),
-                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 130,
-                          childAspectRatio: 0.82,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
-                        itemCount: displayedItems.length,
-                        itemBuilder: (context, index) {
-                          final node = displayedItems[index];
-                          final isSelected = _selectedPaths.contains(node.path);
-
-                          return FileTile(
-                            node: node,
-                            isGrid: true,
-                            isSelectable: _isSelectionMode,
-                            isSelected: isSelected,
-                            vfs: widget.localVfs,
-                            onTap: () => _handleNodeTap(node),
-                            onLongPress: () {
-                              HapticFeedback.mediumImpact();
-                              setState(() {
-                                if (!_isSelectionMode) {
-                                  _isSelectionMode = true;
-                                  _selectedPaths.add(node.path);
-                                } else {
-                                  _toggleSelection(node);
-                                }
-                              });
-                            },
-                          );
-                        },
-                      )
-                    : ListView.builder(
-                        itemCount: displayedItems.length,
-                        itemBuilder: (context, index) {
-                          final node = displayedItems[index];
-                          final isSelected = _selectedPaths.contains(node.path);
-
-                          return FileTile(
-                            node: node,
-                            isGrid: false,
-                            isSelectable: _isSelectionMode,
-                            isSelected: isSelected,
-                            vfs: widget.localVfs,
-                            onTap: () => _handleNodeTap(node),
-                            onLongPress: () {
-                              HapticFeedback.mediumImpact();
-                              setState(() {
-                                if (!_isSelectionMode) {
-                                  _isSelectionMode = true;
-                                  _selectedPaths.add(node.path);
-                                } else {
-                                  _toggleSelection(node);
-                                }
-                              });
-                            },
-                            onMenuPressed: () => _showSingleNodeOptions(node),
-                          );
-                        },
-                      ),
+    return PopScope(
+      canPop: !_isSelectionMode && !isViewingFolderDetail,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_isSelectionMode) {
+          setState(() {
+            _isSelectionMode = false;
+            _selectedPaths.clear();
+          });
+          return;
+        }
+        if (isViewingFolderDetail) {
+          setState(() => _selectedFolderGroup = null);
+          return;
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
+        appBar: AppBar(
+          title: Text(
+            _isSelectionMode
+                ? '${_selectedPaths.length} Selected'
+                : isViewingFolderDetail
+                    ? '${_selectedFolderGroup!.folderName} (${displayedItems.length})'
+                    : isFolderMode
+                        ? '${widget.title} (${folderGroups.length} folders)'
+                        : '${widget.title} (${displayedItems.length})',
           ),
-
-          // Multi-Select Bottom Action Toolbar
-          if (_isSelectionMode)
-            Container(
-              decoration: BoxDecoration(
-                color: isDark ? AppleColors.darkCard : AppleColors.lightCard,
-                border: Border(
-                  top: BorderSide(
-                    color: isDark ? AppleColors.borderStroke : AppleColors.lightBorderStroke,
-                    width: 0.5,
+          leading: _isSelectionMode
+              ? IconButton(
+                  icon: const Icon(CupertinoIcons.xmark),
+                  onPressed: () => setState(() {
+                    _isSelectionMode = false;
+                    _selectedPaths.clear();
+                  }),
+                )
+              : isViewingFolderDetail
+                  ? IconButton(
+                      icon: const Icon(CupertinoIcons.back),
+                      tooltip: 'Back to Folders',
+                      onPressed: () => setState(() => _selectedFolderGroup = null),
+                    )
+                  : null,
+          actions: [
+            if (_isSelectionMode) ...[
+              TextButton(
+                onPressed: _selectAll,
+                child: Text(
+                  _selectedPaths.length == displayedItems.length ? 'Deselect All' : 'Select All',
+                  style: TextStyle(
+                    color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SafeArea(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _toolbarButton(
-                      icon: CupertinoIcons.share,
-                      label: 'Share',
-                      enabled: _selectedPaths.isNotEmpty,
-                      onTap: () => FileOperationService.instance.shareItems(_selectedNodes),
-                      isDark: isDark,
-                    ),
-                    _toolbarButton(
-                      icon: CupertinoIcons.doc_on_doc,
-                      label: 'Copy',
-                      enabled: _selectedPaths.isNotEmpty,
-                      onTap: () => _handleBatchTransfer(isMove: false),
-                      isDark: isDark,
-                    ),
-                    _toolbarButton(
-                      icon: CupertinoIcons.arrow_right_arrow_left,
-                      label: 'Move',
-                      enabled: _selectedPaths.isNotEmpty,
-                      onTap: () => _handleBatchTransfer(isMove: true),
-                      isDark: isDark,
-                    ),
-                    _toolbarButton(
-                      icon: CupertinoIcons.trash,
-                      label: 'Delete',
-                      isDestructive: true,
-                      enabled: _selectedPaths.isNotEmpty,
-                      onTap: _handleBatchDelete,
-                      isDark: isDark,
-                    ),
-                  ],
+            ] else ...[
+              IconButton(
+                icon: Icon(_showSearch ? CupertinoIcons.search_circle_fill : CupertinoIcons.search),
+                onPressed: () => setState(() => _showSearch = !_showSearch),
+              ),
+              IconButton(
+                icon: Icon(_isGrid ? CupertinoIcons.list_bullet : CupertinoIcons.square_grid_2x2),
+                onPressed: () {
+                  final next = !_isGrid;
+                  setState(() => _isGrid = next);
+                  SettingsService.instance.setGridView(next);
+                },
+              ),
+              IconButton(
+                icon: const Icon(CupertinoIcons.sort_down),
+                onPressed: _showSortMenu,
+              ),
+              if (!isFolderMode)
+                IconButton(
+                  icon: const Icon(CupertinoIcons.checkmark_circle),
+                  tooltip: 'Select items',
+                  onPressed: () => setState(() => _isSelectionMode = true),
+                ),
+            ],
+          ],
+        ),
+        body: Column(
+          children: [
+            // Search field
+            if (_showSearch && !_isSelectionMode)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: CupertinoSearchTextField(
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                  onChanged: (val) => setState(() => _searchQuery = val),
                 ),
               ),
+
+            // Top Mode Switcher (Folders vs All Files) when not inside a folder detail
+            if (!isViewingFolderDetail && !_isSelectionMode)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: CupertinoSlidingSegmentedControl<CategoryViewMode>(
+                    groupValue: _viewMode,
+                    backgroundColor: isDark ? const Color(0xFF1E1E20) : const Color(0xFFE5E5EA),
+                    thumbColor: isDark ? const Color(0xFF323236) : Colors.white,
+                    children: {
+                      CategoryViewMode.folders: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 7),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              CupertinoIcons.folder_fill,
+                              size: 14,
+                              color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Folders (${folderGroups.length})',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      CategoryViewMode.allFiles: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 7),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              CupertinoIcons.square_grid_2x2,
+                              size: 14,
+                              color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'All Files (${_currentItems.length})',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    },
+                    onValueChanged: (val) {
+                      if (val != null) setState(() => _viewMode = val);
+                    },
+                  ),
+                ),
+              ),
+
+            // Filter chips bar in All Files mode
+            if (!isViewingFolderDetail && _viewMode == CategoryViewMode.allFiles && !_isSelectionMode)
+              _buildFolderChipsBar(isDark),
+
+            // Main Content Area
+            Expanded(
+              child: isFolderMode
+                  // FOLDERS VIEW (Cx File Explorer style)
+                  ? (folderGroups.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No folders found',
+                            style: TextStyle(
+                              color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                            ),
+                          ),
+                        )
+                      : _isGrid
+                          ? GridView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 220,
+                                childAspectRatio: 0.86,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
+                              itemCount: folderGroups.length,
+                              itemBuilder: (context, index) {
+                                return _buildFolderGridCard(folderGroups[index], isDark);
+                              },
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                              itemCount: folderGroups.length,
+                              separatorBuilder: (context, i) => const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                return _buildFolderListTile(folderGroups[index], isDark);
+                              },
+                            ))
+                  // FILES VIEW (Inside a folder OR in All Files view)
+                  : (displayedItems.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No files found',
+                            style: TextStyle(
+                              color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                            ),
+                          ),
+                        )
+                      : _isGrid
+                          ? GridView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 130,
+                                childAspectRatio: 0.82,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
+                              itemCount: displayedItems.length,
+                              itemBuilder: (context, index) {
+                                final node = displayedItems[index];
+                                final isSelected = _selectedPaths.contains(node.path);
+
+                                return FileTile(
+                                  node: node,
+                                  isGrid: true,
+                                  isSelectable: _isSelectionMode,
+                                  isSelected: isSelected,
+                                  vfs: widget.localVfs,
+                                  onTap: () => _handleNodeTap(node),
+                                  onLongPress: () {
+                                    HapticFeedback.mediumImpact();
+                                    setState(() {
+                                      if (!_isSelectionMode) {
+                                        _isSelectionMode = true;
+                                        _selectedPaths.add(node.path);
+                                      } else {
+                                        _toggleSelection(node);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              itemCount: displayedItems.length,
+                              itemBuilder: (context, index) {
+                                final node = displayedItems[index];
+                                final isSelected = _selectedPaths.contains(node.path);
+
+                                return FileTile(
+                                  node: node,
+                                  isGrid: false,
+                                  isSelectable: _isSelectionMode,
+                                  isSelected: isSelected,
+                                  vfs: widget.localVfs,
+                                  onTap: () => _handleNodeTap(node),
+                                  onLongPress: () {
+                                    HapticFeedback.mediumImpact();
+                                    setState(() {
+                                      if (!_isSelectionMode) {
+                                        _isSelectionMode = true;
+                                        _selectedPaths.add(node.path);
+                                      } else {
+                                        _toggleSelection(node);
+                                      }
+                                    });
+                                  },
+                                  onMenuPressed: () => _showSingleNodeOptions(node),
+                                );
+                              },
+                            )),
             ),
-        ],
+
+            // Multi-Select Bottom Action Toolbar
+            if (_isSelectionMode)
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? AppleColors.darkCard : AppleColors.lightCard,
+                  border: Border(
+                    top: BorderSide(
+                      color: isDark ? AppleColors.borderStroke : AppleColors.lightBorderStroke,
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: SafeArea(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _toolbarButton(
+                        icon: CupertinoIcons.share,
+                        label: 'Share',
+                        enabled: _selectedPaths.isNotEmpty,
+                        onTap: () => FileOperationService.instance.shareItems(_selectedNodes),
+                        isDark: isDark,
+                      ),
+                      _toolbarButton(
+                        icon: CupertinoIcons.doc_on_doc,
+                        label: 'Copy',
+                        enabled: _selectedPaths.isNotEmpty,
+                        onTap: () => _handleBatchTransfer(isMove: false),
+                        isDark: isDark,
+                      ),
+                      _toolbarButton(
+                        icon: CupertinoIcons.arrow_right_arrow_left,
+                        label: 'Move',
+                        enabled: _selectedPaths.isNotEmpty,
+                        onTap: () => _handleBatchTransfer(isMove: true),
+                        isDark: isDark,
+                      ),
+                      _toolbarButton(
+                        icon: CupertinoIcons.trash,
+                        label: 'Delete',
+                        isDestructive: true,
+                        enabled: _selectedPaths.isNotEmpty,
+                        onTap: _handleBatchDelete,
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
