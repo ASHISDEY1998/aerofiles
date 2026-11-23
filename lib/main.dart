@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'screens/home_shell.dart';
 import 'services/log_service.dart';
 import 'services/security/biometric_service.dart';
+import 'services/security/safe_vault_service.dart';
 import 'services/settings_service.dart';
 import 'theme/apple_theme.dart';
 import 'widgets/app_lock_overlay.dart';
@@ -17,6 +18,9 @@ void main() async {
 
   // Initialize biometric & app lock service
   await BiometricService.instance.init();
+
+  // Initialize safe vault service
+  await SafeVaultService.instance.init();
 
   // Global uncaught error hooks
   FlutterError.onError = (details) {

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import '../../models/vfs_node.dart';
 import '../../services/file_operation_service.dart';
 import '../../services/recycle_bin_service.dart';
+import '../../services/security/safe_vault_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
@@ -15,6 +16,7 @@ import '../../widgets/file_tile.dart';
 import '../common/destination_picker_screen.dart';
 import '../player/image_viewer_screen.dart';
 import '../player/universal_video_player_screen.dart';
+import '../security/vault_pin_dialog.dart';
 
 enum SortBy { name, date, size, type }
 
@@ -569,6 +571,62 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     }
   }
 
+  Future<void> _handleMoveToVault(List<VfsNode> nodes) async {
+    if (nodes.isEmpty) return;
+
+    if (!SafeVaultService.instance.isUnlocked) {
+      final unlocked = await VaultPinDialog.show(
+        context,
+        mode: SafeVaultService.instance.hasPin ? VaultPinMode.unlock : VaultPinMode.setup,
+      );
+      if (!unlocked || !SafeVaultService.instance.isUnlocked) return;
+    }
+
+    if (!mounted) return;
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Move to Safe Vault?'),
+        content: Text(
+          'Move ${nodes.length} ${nodes.length == 1 ? "file" : "files"} to Safe Vault? Files will be AES-256 encrypted and hidden from gallery and storage.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Move to Vault'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final success = await SafeVaultService.instance.moveToVault(nodes);
+    if (mounted) {
+      setState(() {
+        _isSelectionMode = false;
+        _selectedPaths.clear();
+      });
+      _loadDirectory();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success
+                ? 'Moved ${nodes.length} ${nodes.length == 1 ? "file" : "files"} to Safe Vault'
+                : 'Some files could not be moved to Safe Vault',
+          ),
+          backgroundColor: AppleColors.darkElevated,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _handleKeyboardCopy() {
     if (_selectedNodes.isEmpty) return;
     final count = _selectedNodes.length;
@@ -795,6 +853,21 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
               ],
             ),
           ),
+          if (SafeVaultService.instance.isVaultEnabled && !node.isDirectory)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _handleMoveToVault([node]);
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.lock_shield_fill, size: 18, color: AppleColors.systemIndigo),
+                  SizedBox(width: 8),
+                  Text('Move to Safe Vault', style: TextStyle(color: AppleColors.systemIndigo)),
+                ],
+              ),
+            ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(ctx);
@@ -1196,6 +1269,16 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
                       onTap: () => _handleBatchTransfer(isMove: true),
                       isDark: isDark,
                     ),
+                    if (SafeVaultService.instance.isVaultEnabled)
+                      _toolbarButton(
+                        icon: CupertinoIcons.lock_shield_fill,
+                        label: 'Vault',
+                        enabled: _selectedPaths.isNotEmpty,
+                        onTap: () => _handleMoveToVault(
+                          _selectedNodes.where((n) => !n.isDirectory).toList(),
+                        ),
+                        isDark: isDark,
+                      ),
                     _toolbarButton(
                       icon: CupertinoIcons.trash,
                       label: 'Delete',

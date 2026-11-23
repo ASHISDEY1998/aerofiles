@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.10_APK-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.11_APK-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -31,7 +31,7 @@ Get the official, standalone Release APK directly on your phone:
 
 ### 📥 **[Download AeroFiles.apk (Direct Install)](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk)**
 * **File Size:** ~102 MB
-* **Version:** v1.0.10 (Build 11)
+* **Version:** v1.0.11 (Build 12)
 * **Compatibility:** Android 8.0 (Oreo) to Android 15+
 
 #### How to Install on Android:
@@ -90,6 +90,12 @@ Get the official, standalone Release APK directly on your phone:
 * **Dual Themes:** Pure OLED Dark Mode and clean Light Mode.
 * **In-App Gallery:** High-resolution image viewer with pinch-to-zoom and swipe gallery.
 * **Batch Operations:** Multi-select toolbar for sharing, copying, moving, renaming, and deleting files.
+
+### 🛡️ 6. Safe Vault (Hidden Encrypted Storage)
+* **Hardware-Grade AES-256 Encryption:** Protect sensitive personal files with streaming AES-256-CTR encryption and 16-byte cryptographically secure random IVs.
+* **Excluded from Android MediaScanner:** Encrypted files live in a shielded `.aerofiles_vault/` directory containing `.nomedia`, preventing photos or videos from appearing in Google Photos or gallery apps.
+* **Custom Vault PIN & Fingerprint:** Configured with its own distinct password/PIN separate from your phone lock screen, with native biometric fingerprint quick-unlock support.
+* **Complete Stealth Mode:** The Safe Vault entry remains invisible throughout the entire app until explicitly toggled on in Settings.
 
 ---
 

@@ -78,7 +78,10 @@ class _LibraryTabState extends State<LibraryTab> {
       if (visited.contains(path)) continue;
       visited.add(path);
 
-      if (path.contains('/Android/data') || path.contains('/Android/obb') || path.contains('/.aerofiles_trash')) {
+      if (path.contains('/Android/data') ||
+          path.contains('/Android/obb') ||
+          path.contains('/.aerofiles_trash') ||
+          path.contains('/.aerofiles_vault')) {
         continue;
       }
 

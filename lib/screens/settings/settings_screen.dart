@@ -9,9 +9,12 @@ import 'package:share_plus/share_plus.dart';
 import '../../services/app_update_service.dart';
 import '../../services/log_service.dart';
 import '../../services/security/biometric_service.dart';
+import '../../services/security/safe_vault_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/apple_card.dart';
+import '../security/safe_vault_screen.dart';
+import '../security/vault_pin_dialog.dart';
 import 'legal_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -279,6 +282,128 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                       ),
                     ),
+                    const Divider(height: 1, indent: 56),
+
+                    // Safe Vault Stealth Feature
+                    ListTile(
+                      leading: const Icon(CupertinoIcons.shield_lefthalf_fill, color: AppleColors.systemIndigo),
+                      title: const Text('Safe Vault (Hidden Encrypted)'),
+                      subtitle: const Text('Hardware AES-256 folder hidden from gallery and file explorer'),
+                      trailing: CupertinoSwitch(
+                        value: SafeVaultService.instance.isVaultEnabled,
+                        activeTrackColor: isDark ? AppleColors.systemIndigo : AppleColors.systemBlueLight,
+                        onChanged: (val) async {
+                          if (val) {
+                            // Turning ON Safe Vault
+                            if (!SafeVaultService.instance.hasPin) {
+                              final created = await VaultPinDialog.show(
+                                context,
+                                mode: VaultPinMode.setup,
+                              );
+                              if (created && context.mounted) {
+                                setState(() {});
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Safe Vault enabled. Entry is now visible in Local Storage.'),
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            } else {
+                              final unlocked = await VaultPinDialog.show(
+                                context,
+                                mode: VaultPinMode.unlock,
+                              );
+                              if (unlocked) {
+                                await SafeVaultService.instance.setVaultEnabled(true);
+                                if (context.mounted) {
+                                  setState(() {});
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Safe Vault enabled and visible in app'),
+                                      duration: Duration(seconds: 3),
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+                          } else {
+                            // Turning OFF Safe Vault: stealth mode hides it from app
+                            final unlocked = await VaultPinDialog.show(
+                              context,
+                              mode: VaultPinMode.unlock,
+                            );
+                            if (unlocked) {
+                              await SafeVaultService.instance.setVaultEnabled(false);
+                              if (context.mounted) {
+                                setState(() {});
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Safe Vault is now completely hidden from app'),
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        },
+                      ),
+                    ),
+
+                    if (SafeVaultService.instance.isVaultEnabled) ...[
+                      const Divider(height: 1, indent: 56),
+                      ListTile(
+                        leading: const Icon(CupertinoIcons.viewfinder, color: AppleColors.systemTeal),
+                        title: const Text('Vault Fingerprint Unlock'),
+                        subtitle: const Text('Allow biometric fingerprint to unlock Safe Vault'),
+                        trailing: CupertinoSwitch(
+                          value: SafeVaultService.instance.isBiometricsEnabled,
+                          activeTrackColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                          onChanged: (val) async {
+                            await SafeVaultService.instance.setBiometricsEnabled(val);
+                            setState(() {});
+                          },
+                        ),
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      ListTile(
+                        leading: const Icon(CupertinoIcons.pencil_circle_fill, color: AppleColors.systemOrange),
+                        title: const Text('Change Vault PIN'),
+                        subtitle: const Text('Update your custom Safe Vault password/PIN'),
+                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
+                        onTap: () async {
+                          final changed = await VaultPinDialog.show(
+                            context,
+                            mode: VaultPinMode.change,
+                          );
+                          if (changed && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Safe Vault PIN updated successfully'),
+                                duration: Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      ListTile(
+                        leading: const Icon(CupertinoIcons.folder_badge_plus, color: AppleColors.systemGreen),
+                        title: const Text('Open Safe Vault'),
+                        subtitle: Text('${SafeVaultService.instance.items.length} encrypted items'),
+                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            CupertinoPageRoute(
+                              builder: (_) => const SafeVaultScreen(),
+                            ),
+                          ).then((_) {
+                            if (mounted) setState(() {});
+                          });
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -327,7 +452,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         showLicensePage(
                           context: context,
                           applicationName: 'AeroFiles',
-                          applicationVersion: '1.0.10',
+                          applicationVersion: '1.0.11',
                         );
                       },
                     ),
@@ -348,8 +473,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: FutureBuilder<PackageInfo>(
                         future: PackageInfo.fromPlatform(),
                         builder: (context, snapshot) {
-                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.10';
-                          final build = snapshot.hasData ? snapshot.data!.buildNumber : '11';
+                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.11';
+                          final build = snapshot.hasData ? snapshot.data!.buildNumber : '12';
                           return Text(
                             '$version (Build $build)',
                             style: const TextStyle(color: AppleColors.textSecondary),

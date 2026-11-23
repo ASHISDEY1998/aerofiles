@@ -51,6 +51,8 @@ class LocalVfs implements VfsProvider {
       final entities = dir.listSync(followLinks: false);
       for (final entity in entities) {
         final name = p.basename(entity.path);
+        // Never expose system vault or trash internal directories to standard file browsing
+        if (name == '.aerofiles_vault' || name == '.aerofiles_trash') continue;
         if (!showHidden && name.startsWith('.')) continue;
 
         try {

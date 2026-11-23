@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../models/storage_info.dart';
 import '../../services/recycle_bin_service.dart';
+import '../../services/security/safe_vault_service.dart';
 import '../../services/storage_analyzer_service.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/apple_card.dart';
 import '../../widgets/storage_donut_chart.dart';
+import '../security/safe_vault_screen.dart';
 import '../settings/settings_screen.dart';
 import 'directory_browser_screen.dart';
 import 'recycle_bin_screen.dart';
@@ -365,6 +367,26 @@ class _LocalTabState extends State<LocalTab> {
                     ).then((_) => setState(() {}));
                   },
                 ),
+
+                // Safe Vault Tile (Stealth Mode: Visible only when enabled in Settings)
+                if (SafeVaultService.instance.isVaultEnabled) ...[
+                  const SizedBox(height: 10),
+                  _buildTile(
+                    icon: CupertinoIcons.lock_shield_fill,
+                    iconColor: AppleColors.systemIndigo,
+                    title: 'Safe Vault',
+                    subtitle: '${SafeVaultService.instance.items.length} encrypted items (AES-256)',
+                    isDark: isDark,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        CupertinoPageRoute(
+                          builder: (_) => const SafeVaultScreen(),
+                        ),
+                      ).then((_) => setState(() {}));
+                    },
+                  ),
+                ],
 
                 const SizedBox(height: 20),
               ]),

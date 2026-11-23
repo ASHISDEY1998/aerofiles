@@ -92,7 +92,8 @@ class StorageAnalyzerService {
       // Skip Android system protected folders that crash directory listing
       if (currentPath.contains('/Android/data') ||
           currentPath.contains('/Android/obb') ||
-          currentPath.contains('/.aerofiles_trash')) {
+          currentPath.contains('/.aerofiles_trash') ||
+          currentPath.contains('/.aerofiles_vault')) {
         continue;
       }
 
