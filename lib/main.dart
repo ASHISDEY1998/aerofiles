@@ -4,14 +4,19 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'screens/home_shell.dart';
 import 'services/log_service.dart';
+import 'services/security/biometric_service.dart';
 import 'services/settings_service.dart';
 import 'theme/apple_theme.dart';
+import 'widgets/app_lock_overlay.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize diagnostics logging
   await LogService.instance.init();
+
+  // Initialize biometric & app lock service
+  await BiometricService.instance.init();
 
   // Global uncaught error hooks
   FlutterError.onError = (details) {
@@ -62,6 +67,7 @@ class AeroFilesApp extends StatelessWidget {
           theme: AppleTheme.lightTheme,
           darkTheme: AppleTheme.darkTheme,
           home: const HomeShell(),
+          builder: (context, child) => AppLockOverlay(child: child ?? const SizedBox.shrink()),
         );
       },
     );

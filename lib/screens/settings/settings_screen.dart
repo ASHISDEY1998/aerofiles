@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/app_update_service.dart';
 import '../../services/log_service.dart';
+import '../../services/security/biometric_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/apple_card.dart';
@@ -233,6 +234,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 24),
 
+              // Section: Security & Privacy
+              _buildSectionHeader('Security & Privacy', isDark),
+              AppleCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(CupertinoIcons.lock_shield_fill, color: AppleColors.systemBlue),
+                      title: const Text('App Lock (Biometrics & PIN)'),
+                      subtitle: const Text('Require Fingerprint, Face ID, or PIN to open app'),
+                      trailing: CupertinoSwitch(
+                        value: BiometricService.instance.isAppLockEnabled,
+                        activeTrackColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                        onChanged: (val) async {
+                          final canAuth = await BiometricService.instance.canAuthenticate();
+                          if (!canAuth && val) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('No biometrics or device PIN configured on this device')),
+                              );
+                            }
+                            return;
+                          }
+
+                          final authenticated = await BiometricService.instance.authenticate(
+                            reason: val
+                                ? 'Verify identity to enable App Lock'
+                                : 'Verify identity to disable App Lock',
+                          );
+
+                          if (authenticated) {
+                            await BiometricService.instance.setAppLockEnabled(val);
+                            setState(() {});
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(val ? 'App Lock enabled' : 'App Lock disabled'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
               // Section 5: Legal & Play Store
               _buildSectionHeader('About & Legal', isDark),
               AppleCard(
@@ -275,7 +327,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         showLicensePage(
                           context: context,
                           applicationName: 'AeroFiles',
-                          applicationVersion: '1.0.6',
+                          applicationVersion: '1.0.7',
                         );
                       },
                     ),
@@ -296,8 +348,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: FutureBuilder<PackageInfo>(
                         future: PackageInfo.fromPlatform(),
                         builder: (context, snapshot) {
-                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.6';
-                          final build = snapshot.hasData ? snapshot.data!.buildNumber : '7';
+                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.7';
+                          final build = snapshot.hasData ? snapshot.data!.buildNumber : '8';
                           return Text(
                             '$version (Build $build)',
                             style: const TextStyle(color: AppleColors.textSecondary),

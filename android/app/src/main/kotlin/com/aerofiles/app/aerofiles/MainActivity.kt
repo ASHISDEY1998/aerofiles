@@ -8,14 +8,14 @@ import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import android.util.Size
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.Executors
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.aerofiles.app/storage"
     private val thumbnailExecutor = Executors.newFixedThreadPool(4)
 
@@ -121,7 +121,7 @@ class MainActivity : FlutterActivity() {
                             // create a zero-copy .ts symlink so Android demuxes it as MPEG-TS:
                             if (isTransportStream) {
                                 try {
-                                    val linkFile = File(context.cacheDir, "th_${System.nanoTime()}_${Thread.currentThread().id}.ts")
+                                    val linkFile = File(applicationContext.cacheDir, "th_${System.nanoTime()}_${Thread.currentThread().id}.ts")
                                     android.system.Os.symlink(file.absolutePath, linkFile.absolutePath)
                                     tempLink = linkFile
 

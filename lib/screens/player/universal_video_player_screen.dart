@@ -1187,73 +1187,80 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                 ),
               ),
 
-            // Resume Playback Floating Banner
+            // Resume Playback Floating Banner (Positioned smoothly above bottom controls to avoid top header overlap)
             if (_showResumeBanner && _savedResumeSeconds > 0)
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 16,
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                bottom: _showControls
+                    ? MediaQuery.of(context).padding.bottom + 92
+                    : MediaQuery.of(context).padding.bottom + 28,
                 left: 20,
                 right: 20,
-                child: SafeArea(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xE61C1C1E),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black54,
-                          blurRadius: 16,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                      border: Border.all(color: Colors.white12, width: 0.8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(CupertinoIcons.play_circle_fill, color: AppleColors.systemBlue, size: 28),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'Resume Playback',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                'Resume from ${_formatDuration(Duration(seconds: _savedResumeSeconds))}?',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xE61C1C1E),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black54,
+                            blurRadius: 16,
+                            offset: Offset(0, 4),
                           ),
-                        ),
-                        TextButton(
-                          onPressed: _resumeFromSavedPosition,
-                          style: TextButton.styleFrom(
-                            backgroundColor: AppleColors.systemBlue,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        ],
+                        border: Border.all(color: Colors.white24, width: 0.8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(CupertinoIcons.play_circle_fill, color: AppleColors.systemBlue, size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Resume Playback',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  'Resume from ${_formatDuration(Duration(seconds: _savedResumeSeconds))}?',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          child: const Text('Resume', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(CupertinoIcons.xmark, color: Colors.white54, size: 18),
-                          tooltip: 'Dismiss',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: _dismissResumeBanner,
-                        ),
-                      ],
+                          TextButton(
+                            onPressed: _resumeFromSavedPosition,
+                            style: TextButton.styleFrom(
+                              backgroundColor: AppleColors.systemBlue,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            ),
+                            child: const Text('Resume', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(CupertinoIcons.xmark, color: Colors.white54, size: 18),
+                            tooltip: 'Dismiss',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: _dismissResumeBanner,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
