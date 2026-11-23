@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/app_update_service.dart';
 import '../../services/log_service.dart';
+import '../../services/media/thumbnail_service.dart';
 import '../../services/security/biometric_service.dart';
 import '../../services/security/safe_vault_service.dart';
 import '../../services/settings_service.dart';
@@ -226,6 +227,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Log buffer cleared')),
+                            );
+                          }
+                        },
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      ListTile(
+                        leading: const Icon(CupertinoIcons.photo_on_rectangle, color: AppleColors.systemOrange),
+                        title: const Text('Clear Thumbnail Cache'),
+                        subtitle: const Text('Free disk cache used by persistent video thumbnails'),
+                        onTap: () async {
+                          await ThumbnailService.instance.clearAll();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Thumbnail cache cleared')),
                             );
                           }
                         },
@@ -452,7 +467,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         showLicensePage(
                           context: context,
                           applicationName: 'AeroFiles',
-                          applicationVersion: '1.0.11',
+                          applicationVersion: '1.0.12',
                         );
                       },
                     ),
@@ -473,8 +488,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: FutureBuilder<PackageInfo>(
                         future: PackageInfo.fromPlatform(),
                         builder: (context, snapshot) {
-                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.11';
-                          final build = snapshot.hasData ? snapshot.data!.buildNumber : '12';
+                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.12';
+                          final build = snapshot.hasData ? snapshot.data!.buildNumber : '13';
                           return Text(
                             '$version (Build $build)',
                             style: const TextStyle(color: AppleColors.textSecondary),

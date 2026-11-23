@@ -9,15 +9,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.11_APK-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+  <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.12_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases"><img src="https://img.shields.io/github/v/release/ASHISDEY1998/aerofiles?color=0A84FF&label=Release&style=flat-square" alt="Release" /></a>
   <img src="https://img.shields.io/badge/Platform-Android_8.0+-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 8.0+" />
-  <img src="https://img.shields.io/badge/Architecture-ARM64_%7C_x86__64-blue?style=flat-square" alt="Arch" />
+  <img src="https://img.shields.io/badge/Architecture-ARM64_%7C_ARMv7_%7C_x86__64-blue?style=flat-square" alt="Arch" />
   <img src="https://img.shields.io/badge/Engine-Flutter_%7C_libmpv-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter" />
   <img src="https://img.shields.io/badge/Theme-OLED_Dark_%26_Light-000000?style=flat-square" alt="Theme" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -29,13 +29,17 @@
 
 Get the official, standalone Release APK directly on your phone:
 
-### 📥 **[Download AeroFiles.apk (Direct Install)](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk)**
-* **File Size:** ~102 MB
-* **Version:** v1.0.11 (Build 12)
+### 📥 **Download Links (v1.0.12 / Build 13):**
+* 🚀 **[Download AeroFiles-arm64-v8a.apk (~34 MB)](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk)** — **Recommended** for modern phones and tablets (Samsung, Pixel, OnePlus, Xiaomi, etc.)
+* 📱 **[Download AeroFiles-armv7.apk (~32 MB)](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-armv7.apk)** — For older 32-bit Android devices
+* 💻 **[Download AeroFiles-x86_64.apk (~39 MB)](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-x86_64.apk)** — For Chromebooks and Android Emulators
+* 🌐 **[Download AeroFiles.apk (Universal Fat APK - ~102 MB)](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk)** — Multi-architecture bundle
+* 📦 **[Download AeroFiles.aab (Android App Bundle)](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.aab)** — For Google Play Console store publishing
+
 * **Compatibility:** Android 8.0 (Oreo) to Android 15+
 
 #### How to Install on Android:
-1. Tap the **[Download AeroFiles.apk](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk)** link.
+1. Tap the **[Download AeroFiles-arm64-v8a.apk](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk)** link.
 2. Once the download completes, tap the notification or open the file from your **Downloads** folder.
 3. If prompted with *"Install unknown apps"*, tap **Settings** and allow installation for your browser.
 4. Tap **Install** and launch **AeroFiles** from your home screen.
@@ -96,6 +100,12 @@ Get the official, standalone Release APK directly on your phone:
 * **Excluded from Android MediaScanner:** Encrypted files live in a shielded `.aerofiles_vault/` directory containing `.nomedia`, preventing photos or videos from appearing in Google Photos or gallery apps.
 * **Custom Vault PIN & Fingerprint:** Configured with its own distinct password/PIN separate from your phone lock screen, with native biometric fingerprint quick-unlock support.
 * **Complete Stealth Mode:** The Safe Vault entry remains invisible throughout the entire app until explicitly toggled on in Settings.
+
+### ⚡ 7. Ultra-Fast Disk-Persistent Thumbnail Cache & Per-ABI Optimization
+* **Instant Disk-Cached Loading:** Thumbnails are persistently cached to `context.cacheDir/thumbnails/` using MD5 hash & last-modified keys, loading instantly on launch with zero CPU decode spikes.
+* **Two-Tier Architecture:** Smooth 60/120fps scrolling powered by an L1 compact in-memory cache and L2 disk cache.
+* **Resource Guardrails:** Automatic LRU pruning bounded at 60 MB / 1,500 entries, with concurrent request deduplication.
+* **70% Download Bandwidth Reduction:** Split per-ABI APKs (`arm64-v8a` at ~34 MB, `armeabi-v7a` at ~32 MB) eliminate unneeded architecture binaries.
 
 ---
 

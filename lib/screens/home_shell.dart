@@ -122,7 +122,7 @@ class _HomeShellState extends State<HomeShell> {
                         ),
                       ),
                       Text(
-                        'v1.0.11 Pro',
+                        'v1.0.12 Pro',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,

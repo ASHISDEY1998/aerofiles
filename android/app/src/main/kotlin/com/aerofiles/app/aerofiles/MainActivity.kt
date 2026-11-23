@@ -229,6 +229,43 @@ class MainActivity : FlutterFragmentActivity() {
         return false
     }
 
+    private fun md5(input: String): String {
+        return try {
+            val md = java.security.MessageDigest.getInstance("MD5")
+            val digest = md.digest(input.toByteArray(Charsets.UTF_8))
+            digest.joinToString("") { "%02x".format(it) }
+        } catch (_: Throwable) {
+            input.hashCode().toString()
+        }
+    }
+
+    private fun trimThumbnailDiskCache(thumbDir: File) {
+        try {
+            val files = thumbDir.listFiles() ?: return
+            val maxFiles = 1500
+            val maxBytes = 60L * 1024 * 1024 // 60 MB
+
+            var totalBytes = 0L
+            for (f in files) {
+                totalBytes += f.length()
+            }
+
+            if (files.size > maxFiles || totalBytes > maxBytes) {
+                val sorted = files.sortedBy { it.lastModified() }
+                var currentBytes = totalBytes
+                var currentCount = files.size
+                for (f in sorted) {
+                    if (currentCount <= maxFiles * 0.8 && currentBytes <= maxBytes * 0.8) break
+                    val len = f.length()
+                    if (f.delete()) {
+                        currentBytes -= len
+                        currentCount--
+                    }
+                }
+            }
+        } catch (_: Throwable) {}
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -318,6 +355,23 @@ class MainActivity : FlutterFragmentActivity() {
                     }
 
                     thumbnailExecutor.execute {
+                        val thumbDir = File(applicationContext.cacheDir, "thumbnails").apply {
+                            if (!exists()) mkdirs()
+                        }
+                        val lastModified = file.lastModified()
+                        val cacheKey = "${md5(file.absolutePath)}_${lastModified}.jpg"
+                        val cacheFile = File(thumbDir, cacheKey)
+
+                        // ⚡ Instant Disk-Cache Hit: return cached thumbnail immediately without decoding
+                        if (cacheFile.exists() && cacheFile.length() > 0) {
+                            try {
+                                val cachedBytes = cacheFile.readBytes()
+                                cacheFile.setLastModified(System.currentTimeMillis())
+                                runOnUiThread { result.success(cachedBytes) }
+                                return@execute
+                            } catch (_: Throwable) {}
+                        }
+
                         var bitmap: Bitmap? = null
                         var retriever: MediaMetadataRetriever? = null
                         var fis: java.io.FileInputStream? = null
@@ -445,6 +499,13 @@ class MainActivity : FlutterFragmentActivity() {
                                     scaledBitmap.recycle()
                                 }
                                 bitmap.recycle()
+
+                                // Save to persistent disk cache
+                                try {
+                                    cacheFile.writeBytes(bytes)
+                                    trimThumbnailDiskCache(thumbDir)
+                                } catch (_: Throwable) {}
+
                                 runOnUiThread { result.success(bytes) }
                             } else {
                                 runOnUiThread { result.success(null) }
@@ -462,6 +523,18 @@ class MainActivity : FlutterFragmentActivity() {
                                 tempLink?.delete()
                             } catch (_: Throwable) {}
                         }
+                    }
+                }
+                "clearThumbnailCache" -> {
+                    thumbnailExecutor.execute {
+                        try {
+                            val thumbDir = File(applicationContext.cacheDir, "thumbnails")
+                            if (thumbDir.exists()) {
+                                thumbDir.deleteRecursively()
+                                thumbDir.mkdirs()
+                            }
+                        } catch (_: Throwable) {}
+                        runOnUiThread { result.success(true) }
                     }
                 }
                 else -> {
