@@ -78,6 +78,21 @@ class MainActivity : FlutterActivity() {
                         result.error("ERROR", e.message ?: "Failed to scan file", null)
                     }
                 }
+                "enterPipMode" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        try {
+                            val params = android.app.PictureInPictureParams.Builder()
+                                .setAspectRatio(android.util.Rational(16, 9))
+                                .build()
+                            val entered = enterPictureInPictureMode(params)
+                            result.success(entered)
+                        } catch (e: Exception) {
+                            result.error("PIP_ERROR", e.message ?: "Failed to enter PiP mode", null)
+                        }
+                    } else {
+                        result.success(false)
+                    }
+                }
                 "getVideoThumbnail" -> {
                     val path = call.argument<String>("path")
                     if (path.isNullOrEmpty()) {

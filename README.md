@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.5_APK-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.6_APK-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -31,7 +31,7 @@ Get the official, standalone Release APK directly on your phone:
 
 ### 📥 **[Download AeroFiles.apk (Direct Install)](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk)**
 * **File Size:** ~101 MB
-* **Version:** v1.0.5 (Build 6)
+* **Version:** v1.0.6 (Build 7)
 * **Compatibility:** Android 8.0 (Oreo) to Android 15+
 
 #### How to Install on Android:

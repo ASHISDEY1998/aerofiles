@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:path/path.dart' as p;
 import '../../models/vfs_node.dart';
 import '../../services/log_service.dart';
 import '../../services/media/media_player_service.dart';
+import '../../services/media/playback_history_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
@@ -39,6 +42,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   late String _currentTitle;
   late String _currentPlaybackUri;
   StreamSubscription? _completedSubscription;
+  StreamSubscription? _positionSubscription;
   bool _isSwitchingVideo = false;
   bool _hasDeletedAny = false;
 
@@ -67,6 +71,16 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   double _verticalDragStartY = 0.0;
   double _verticalDragStartValue = 0.0;
 
+  // Playback Resume
+  int _savedResumeSeconds = 0;
+  bool _showResumeBanner = false;
+  Timer? _resumeBannerTimer;
+
+  // Quick Double-Tap Seek (±10s)
+  bool _showLeftSeekRipple = false;
+  bool _showRightSeekRipple = false;
+  Timer? _seekRippleTimer;
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +93,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     LogService.instance.info('PLAYER', 'Opening initial video: "$_currentTitle" uri: $_currentPlaybackUri (index: $_currentIndex)');
     _mediaService.openMedia(_currentPlaybackUri);
     _startHideTimer();
+    _checkSavedPlaybackPosition();
 
     // Enable immersive sticky fullscreen
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -100,8 +115,19 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     // Initialize volume from player
     _volume = _mediaService.player.state.volume;
 
+    // Periodically save playback position every 5s
+    _positionSubscription = _mediaService.player.stream.position.listen((pos) {
+      final total = _mediaService.player.state.duration;
+      if (total.inSeconds > 0 && pos.inSeconds > 0 && pos.inSeconds % 5 == 0) {
+        PlaybackHistoryService.instance.savePosition(_currentPlaybackUri, pos, total);
+      }
+    });
+
     // Auto-advance to next video when playback finishes
     _completedSubscription = _mediaService.player.stream.completed.listen((completed) {
+      if (completed) {
+        PlaybackHistoryService.instance.clearPosition(_currentPlaybackUri);
+      }
       if (completed && mounted && _hasNext) {
         _playVideoAtIndex(_currentIndex + 1);
       }
@@ -171,11 +197,19 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   Future<void> _playVideoAtIndex(int index) async {
     if (_playlist.isEmpty || index < 0 || index >= _playlist.length) return;
 
+    // Save position of current video before switching
+    PlaybackHistoryService.instance.savePosition(
+      _currentPlaybackUri,
+      _mediaService.player.state.position,
+      _mediaService.player.state.duration,
+    );
+
     final node = _playlist[index];
     setState(() {
       _currentIndex = index;
       _currentTitle = node.name;
       _isSwitchingVideo = true;
+      _showResumeBanner = false;
     });
 
     try {
@@ -186,6 +220,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       _currentPlaybackUri = uri;
       LogService.instance.info('PLAYER', 'Switching video index $index: "${node.name}" uri: $uri');
       await _mediaService.openMedia(uri);
+      _checkSavedPlaybackPosition();
     } catch (e, st) {
       LogService.instance.error('PLAYER', 'Error playing video at index $index: $e', e, st);
       debugPrint('Error playing video at index $index: $e');
@@ -544,6 +579,17 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     _hideVerticalHudTimer?.cancel();
     _fitHudTimer?.cancel();
     _completedSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _resumeBannerTimer?.cancel();
+    _seekRippleTimer?.cancel();
+
+    // Persist position upon exit
+    PlaybackHistoryService.instance.savePosition(
+      _currentPlaybackUri,
+      _mediaService.player.state.position,
+      _mediaService.player.state.duration,
+    );
+
     _mediaService.dispose();
 
     // Restore edge-to-edge UI and unlock all orientations for tablets and phones
@@ -551,6 +597,91 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     SystemChrome.setPreferredOrientations([]);
 
     super.dispose();
+  }
+
+  Future<void> _checkSavedPlaybackPosition() async {
+    final saved = await PlaybackHistoryService.instance.getSavedPosition(_currentPlaybackUri);
+    if (saved > 15 && mounted) {
+      setState(() {
+        _savedResumeSeconds = saved;
+        _showResumeBanner = true;
+      });
+      _resumeBannerTimer?.cancel();
+      _resumeBannerTimer = Timer(const Duration(seconds: 8), () {
+        if (mounted) setState(() => _showResumeBanner = false);
+      });
+    }
+  }
+
+  void _resumeFromSavedPosition() {
+    _resumeBannerTimer?.cancel();
+    if (_savedResumeSeconds > 0) {
+      _mediaService.seek(Duration(seconds: _savedResumeSeconds));
+      HapticFeedback.mediumImpact();
+    }
+    setState(() => _showResumeBanner = false);
+  }
+
+  void _dismissResumeBanner() {
+    _resumeBannerTimer?.cancel();
+    PlaybackHistoryService.instance.clearPosition(_currentPlaybackUri);
+    setState(() => _showResumeBanner = false);
+  }
+
+  void _onDoubleTapDown(TapDownDetails details) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final dx = details.localPosition.dx;
+    final currentPos = _mediaService.player.state.position;
+    final totalDuration = _mediaService.player.state.duration;
+
+    if (dx < screenWidth * 0.35) {
+      // Seek Backward 10s
+      final target = currentPos - const Duration(seconds: 10);
+      _mediaService.seek(target < Duration.zero ? Duration.zero : target);
+      HapticFeedback.lightImpact();
+
+      _seekRippleTimer?.cancel();
+      setState(() {
+        _showLeftSeekRipple = true;
+        _showRightSeekRipple = false;
+      });
+      _seekRippleTimer = Timer(const Duration(milliseconds: 650), () {
+        if (mounted) setState(() => _showLeftSeekRipple = false);
+      });
+    } else if (dx > screenWidth * 0.65) {
+      // Seek Forward 10s
+      final target = currentPos + const Duration(seconds: 10);
+      _mediaService.seek(totalDuration.inSeconds > 0 && target > totalDuration ? totalDuration : target);
+      HapticFeedback.lightImpact();
+
+      _seekRippleTimer?.cancel();
+      setState(() {
+        _showRightSeekRipple = true;
+        _showLeftSeekRipple = false;
+      });
+      _seekRippleTimer = Timer(const Duration(milliseconds: 650), () {
+        if (mounted) setState(() => _showRightSeekRipple = false);
+      });
+    } else {
+      // Center Double-Tap: Play/Pause Toggle
+      _mediaService.playOrPause();
+      HapticFeedback.mediumImpact();
+    }
+  }
+
+  Future<void> _enterPipMode() async {
+    try {
+      setState(() => _showControls = false);
+      const channel = MethodChannel('com.aerofiles.app/storage');
+      final entered = await channel.invokeMethod<bool>('enterPipMode');
+      if (entered != true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PiP mode not supported on this device')),
+        );
+      }
+    } catch (e) {
+      debugPrint('enterPipMode error: $e');
+    }
   }
 
   String _formatDuration(Duration duration) {
@@ -566,43 +697,237 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
 
   void _showTrackSheet({required bool isAudio}) {
     final player = _mediaService.player;
-    final tracks = isAudio ? player.state.tracks.audio : player.state.tracks.subtitle;
+    final audioTracks = player.state.tracks.audio;
+    final subtitleTracks = player.state.tracks.subtitle;
+    final selectedAudio = player.state.track.audio;
+    final selectedSubtitle = player.state.track.subtitle;
 
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: Text(isAudio ? 'Audio Tracks' : 'Subtitles'),
-        message: Text(isAudio ? 'Select multi-language audio track' : 'Select or toggle subtitle stream'),
-        actions: [
-          if (!isAudio)
-            CupertinoActionSheetAction(
-              onPressed: () {
-                _mediaService.setSubtitleTrack(SubtitleTrack.no());
-                Navigator.pop(ctx);
-              },
-              child: const Text('Off (Disable Subtitles)', style: TextStyle(color: AppleColors.systemRed)),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
+          return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.75,
             ),
-          ...tracks.map((track) {
-            final label = track.title ?? track.language ?? track.id;
-            return CupertinoActionSheetAction(
-              onPressed: () {
-                if (isAudio) {
-                  _mediaService.setAudioTrack(track as AudioTrack);
-                } else {
-                  _mediaService.setSubtitleTrack(track as SubtitleTrack);
-                }
-                Navigator.pop(ctx);
-              },
-              child: Text(label),
-            );
-          }),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel'),
-        ),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 8, bottom: 4),
+                    width: 36,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black26,
+                      borderRadius: BorderRadius.circular(2.5),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isAudio ? 'Audio Tracks' : 'Subtitles',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        if (!isAudio) ...[
+                          ListTile(
+                            leading: Icon(
+                              selectedSubtitle.id == 'no'
+                                  ? CupertinoIcons.checkmark_circle_fill
+                                  : CupertinoIcons.circle,
+                              color: selectedSubtitle.id == 'no'
+                                  ? AppleColors.systemBlue
+                                  : AppleColors.textTertiary,
+                            ),
+                            title: const Text('Off (Disable Subtitles)'),
+                            onTap: () {
+                              _mediaService.setSubtitleTrack(SubtitleTrack.no());
+                              Navigator.pop(ctx);
+                              setState(() {});
+                            },
+                          ),
+                          ListTile(
+                            leading: Icon(
+                              selectedSubtitle.id == 'auto'
+                                  ? CupertinoIcons.checkmark_circle_fill
+                                  : CupertinoIcons.circle,
+                              color: selectedSubtitle.id == 'auto'
+                                  ? AppleColors.systemBlue
+                                  : AppleColors.textTertiary,
+                            ),
+                            title: const Text('Auto (Default Stream)'),
+                            onTap: () {
+                              _mediaService.setSubtitleTrack(SubtitleTrack.auto());
+                              Navigator.pop(ctx);
+                              setState(() {});
+                            },
+                          ),
+                          const Divider(height: 1, indent: 56),
+                        ],
+                        if (isAudio) ...[
+                          ListTile(
+                            leading: Icon(
+                              selectedAudio.id == 'auto'
+                                  ? CupertinoIcons.checkmark_circle_fill
+                                  : CupertinoIcons.circle,
+                              color: selectedAudio.id == 'auto'
+                                  ? AppleColors.systemBlue
+                                  : AppleColors.textTertiary,
+                            ),
+                            title: const Text('Auto (Default Audio)'),
+                            onTap: () {
+                              _mediaService.setAudioTrack(AudioTrack.auto());
+                              Navigator.pop(ctx);
+                              setState(() {});
+                            },
+                          ),
+                          const Divider(height: 1, indent: 56),
+                        ],
+                        ...(isAudio ? audioTracks : subtitleTracks).map((track) {
+                          if (track.id == 'auto' || track.id == 'no') return const SizedBox.shrink();
+
+                          final isSelected = isAudio
+                              ? selectedAudio.id == track.id
+                              : selectedSubtitle.id == track.id;
+
+                          String label = track.title ?? '';
+                          if (label.isEmpty && track.language != null && track.language!.isNotEmpty) {
+                            label = track.language!.toUpperCase();
+                          }
+                          if (label.isEmpty) {
+                            label = 'Track ${track.id}';
+                          }
+
+                          String? details;
+                          if (isAudio && track is AudioTrack) {
+                            final channels = track.channels ?? (track.channelscount != null ? '${track.channelscount} ch' : null);
+                            final codec = track.codec;
+                            if (channels != null || codec != null) {
+                              details = [codec, channels].where((e) => e != null).join(' • ');
+                            }
+                          }
+
+                          return ListTile(
+                            leading: Icon(
+                              isSelected ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+                              color: isSelected ? AppleColors.systemBlue : AppleColors.textTertiary,
+                            ),
+                            title: Text(label, style: TextStyle(fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
+                            subtitle: details != null ? Text(details, style: const TextStyle(fontSize: 12, color: AppleColors.textSecondary)) : null,
+                            onTap: () {
+                              if (isAudio) {
+                                _mediaService.setAudioTrack(track as AudioTrack);
+                              } else {
+                                _mediaService.setSubtitleTrack(track as SubtitleTrack);
+                              }
+                              Navigator.pop(ctx);
+                              setState(() {});
+                            },
+                          );
+                        }),
+                        if (!isAudio) ...[
+                          const Divider(height: 1),
+                          ListTile(
+                            leading: const Icon(CupertinoIcons.folder_badge_plus, color: AppleColors.systemBlue),
+                            title: const Text('Load Subtitles from Folder...'),
+                            subtitle: const Text('Detect .srt, .vtt, .ass files in folder'),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _detectAndPickSubtitles();
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
+  }
+
+  Future<void> _detectAndPickSubtitles() async {
+    try {
+      final currentFile = File(_currentPlaybackUri);
+      final parentDir = currentFile.parent;
+      if (await parentDir.exists()) {
+        final subs = <File>[];
+        for (final entity in parentDir.listSync()) {
+          if (entity is File) {
+            final ext = p.extension(entity.path).toLowerCase();
+            if (ext == '.srt' || ext == '.vtt' || ext == '.ass' || ext == '.sub') {
+              subs.add(entity);
+            }
+          }
+        }
+
+        if (!mounted) return;
+
+        if (subs.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No subtitle files (.srt, .vtt, .ass) found in this folder')),
+          );
+          return;
+        }
+
+        showCupertinoModalPopup(
+          context: context,
+          builder: (ctx) => CupertinoActionSheet(
+            title: const Text('Available Subtitle Files'),
+            message: const Text('Select a subtitle file to load'),
+            actions: [
+              ...subs.map((f) => CupertinoActionSheetAction(
+                onPressed: () {
+                  _mediaService.setSubtitleTrack(SubtitleTrack.uri(f.path, title: p.basename(f.path)));
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Loaded subtitle: ${p.basename(f.path)}')),
+                  );
+                },
+                child: Text(p.basename(f.path)),
+              )),
+            ],
+            cancelButton: CupertinoActionSheetAction(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to detect subtitles: $e');
+    }
   }
 
   @override
@@ -619,6 +944,8 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
         backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: _toggleControls,
+        onDoubleTapDown: _onDoubleTapDown,
+        onDoubleTap: () {},
         onHorizontalDragStart: _onHorizontalDragStart,
         onHorizontalDragUpdate: _onHorizontalDragUpdate,
         onHorizontalDragEnd: _onHorizontalDragEnd,
@@ -804,6 +1131,134 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                 ),
               ),
 
+            // Double-Tap Left Seek Ripple (-10s)
+            if (_showLeftSeekRipple)
+              Positioned(
+                left: 48,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xB3000000),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white24, width: 0.8),
+                      ),
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.gobackward_10, color: Colors.white, size: 36),
+                          SizedBox(height: 6),
+                          Text('-10s', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Double-Tap Right Seek Ripple (+10s)
+            if (_showRightSeekRipple)
+              Positioned(
+                right: 48,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xB3000000),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white24, width: 0.8),
+                      ),
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.goforward_10, color: Colors.white, size: 36),
+                          SizedBox(height: 6),
+                          Text('+10s', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Resume Playback Floating Banner
+            if (_showResumeBanner && _savedResumeSeconds > 0)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 16,
+                left: 20,
+                right: 20,
+                child: SafeArea(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xE61C1C1E),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black54,
+                          blurRadius: 16,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                      border: Border.all(color: Colors.white12, width: 0.8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(CupertinoIcons.play_circle_fill, color: AppleColors.systemBlue, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Resume Playback',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                'Resume from ${_formatDuration(Duration(seconds: _savedResumeSeconds))}?',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _resumeFromSavedPosition,
+                          style: TextButton.styleFrom(
+                            backgroundColor: AppleColors.systemBlue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          ),
+                          child: const Text('Resume', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(CupertinoIcons.xmark, color: Colors.white54, size: 18),
+                          tooltip: 'Dismiss',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: _dismissResumeBanner,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
             // Controls Overlay
             if (_showControls) ...[
               // Top Bar
@@ -880,6 +1335,12 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                         ),
                         tooltip: 'Aspect Ratio: $_fitLabel',
                         onPressed: _toggleVideoFit,
+                      ),
+                      // Picture-in-Picture Button
+                      IconButton(
+                        icon: const Icon(Icons.picture_in_picture_alt_rounded, color: Colors.white),
+                        tooltip: 'Picture-in-Picture',
+                        onPressed: _enterPipMode,
                       ),
                       // Subtitles
                       IconButton(
