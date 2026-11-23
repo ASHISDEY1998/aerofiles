@@ -5,6 +5,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import '../../models/vfs_node.dart';
 import '../../services/file_operation_service.dart';
+import '../../services/recycle_bin_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
@@ -525,6 +526,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   }
 
   Future<void> _executeBatchDelete(List<VfsNode> selected, {required bool moveToTrash}) async {
+    RecycleBinService.instance.clearRecentlyTrashed();
     for (final node in selected) {
       await widget.vfs.delete(node.path, moveToTrash: moveToTrash);
     }
@@ -536,11 +538,126 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 4),
           content: Text(
             moveToTrash
-                ? '${selected.length} items moved to Recycle Bin'
+                ? (selected.length == 1
+                    ? '"${selected.first.name}" moved to Recycle Bin'
+                    : '${selected.length} items moved to Recycle Bin')
                 : '${selected.length} items permanently deleted',
           ),
+          action: moveToTrash
+              ? SnackBarAction(
+                  label: 'Undo',
+                  textColor: AppleColors.systemBlue,
+                  onPressed: () async {
+                    final count = await RecycleBinService.instance.restoreRecentlyTrashed();
+                    if (mounted) {
+                      _loadDirectory();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          duration: const Duration(seconds: 2),
+                          content: Text('$count item${count == 1 ? '' : 's'} restored'),
+                        ),
+                      );
+                    }
+                  },
+                )
+              : null,
+        ),
+      );
+    }
+  }
+
+  void _handleKeyboardCopy() {
+    if (_selectedNodes.isEmpty) return;
+    final count = _selectedNodes.length;
+    FileOperationService.instance.clipboardItems = List.from(_selectedNodes);
+    FileOperationService.instance.isClipboardCut = false;
+    FileOperationService.instance.clipboardSourceVfs = widget.vfs;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Copied $count item${count == 1 ? '' : 's'} to clipboard'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? AppleColors.darkCard
+            : AppleColors.lightCard,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _handleKeyboardCut() {
+    if (_selectedNodes.isEmpty) return;
+    final count = _selectedNodes.length;
+    FileOperationService.instance.clipboardItems = List.from(_selectedNodes);
+    FileOperationService.instance.isClipboardCut = true;
+    FileOperationService.instance.clipboardSourceVfs = widget.vfs;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Cut $count item${count == 1 ? '' : 's'} to clipboard'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? AppleColors.darkCard
+            : AppleColors.lightCard,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _handleKeyboardPaste() async {
+    final clip = FileOperationService.instance.clipboardItems;
+    if (clip.isEmpty) return;
+
+    final isCut = FileOperationService.instance.isClipboardCut;
+    final sourceVfs = FileOperationService.instance.clipboardSourceVfs ?? widget.vfs;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const CupertinoActivityIndicator(radius: 8),
+            const SizedBox(width: 12),
+            Text('Pasting ${clip.length} item${clip.length == 1 ? '' : 's'}...'),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: isDark ? AppleColors.darkCard : AppleColors.lightCard,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    bool ok = false;
+    if (isCut) {
+      ok = await FileOperationService.instance.moveItems(
+        items: clip,
+        targetDirPath: _currentPath,
+        targetVfs: widget.vfs,
+        sourceVfs: sourceVfs,
+      );
+      if (ok) {
+        FileOperationService.instance.clipboardItems.clear();
+      }
+    } else {
+      ok = await FileOperationService.instance.copyItems(
+        items: clip,
+        targetDirPath: _currentPath,
+        targetVfs: widget.vfs,
+        sourceVfs: sourceVfs,
+      );
+    }
+
+    if (mounted) {
+      _loadDirectory();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok
+              ? 'Successfully pasted ${clip.length} item${clip.length == 1 ? '' : 's'}'
+              : 'Failed to paste some items'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: isDark ? AppleColors.darkCard : AppleColors.lightCard,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -766,7 +883,79 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
           Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+          final isCmdOrCtrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+
+          // Cmd/Ctrl + A: Select All
+          if (isCmdOrCtrl && event.logicalKey == LogicalKeyboardKey.keyA) {
+            if (!_isSelectionMode) {
+              setState(() => _isSelectionMode = true);
+            }
+            _selectAll();
+            return KeyEventResult.handled;
+          }
+
+          // Cmd/Ctrl + C: Copy selected
+          if (isCmdOrCtrl && event.logicalKey == LogicalKeyboardKey.keyC) {
+            if (_selectedNodes.isNotEmpty) {
+              _handleKeyboardCopy();
+              return KeyEventResult.handled;
+            }
+          }
+
+          // Cmd/Ctrl + X: Cut selected
+          if (isCmdOrCtrl && event.logicalKey == LogicalKeyboardKey.keyX) {
+            if (_selectedNodes.isNotEmpty) {
+              _handleKeyboardCut();
+              return KeyEventResult.handled;
+            }
+          }
+
+          // Cmd/Ctrl + V: Paste clipboard
+          if (isCmdOrCtrl && event.logicalKey == LogicalKeyboardKey.keyV) {
+            if (FileOperationService.instance.clipboardItems.isNotEmpty) {
+              _handleKeyboardPaste();
+              return KeyEventResult.handled;
+            }
+          }
+
+          // Delete or Backspace: Move to Recycle Bin
+          if (event.logicalKey == LogicalKeyboardKey.delete || event.logicalKey == LogicalKeyboardKey.backspace) {
+            if (_selectedNodes.isNotEmpty) {
+              _handleBatchDelete();
+              return KeyEventResult.handled;
+            }
+          }
+
+          // Space: Quick Preview
+          if (event.logicalKey == LogicalKeyboardKey.space) {
+            if (_selectedNodes.length == 1) {
+              _handleNodeTap(_selectedNodes.first);
+              return KeyEventResult.handled;
+            } else if (_filteredAndSortedItems.isNotEmpty && _selectedNodes.isEmpty) {
+              _handleNodeTap(_filteredAndSortedItems.first);
+              return KeyEventResult.handled;
+            }
+          }
+
+          // Escape: Clear selection
+          if (event.logicalKey == LogicalKeyboardKey.escape) {
+            if (_isSelectionMode) {
+              setState(() {
+                _isSelectionMode = false;
+                _selectedPaths.clear();
+              });
+              return KeyEventResult.handled;
+            }
+          }
+
+          return KeyEventResult.ignored;
+        },
+        child: Scaffold(
         backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
         appBar: AppBar(
           title: Text(
@@ -1022,7 +1211,8 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
         ],
       ),
     ),
-  );
+  ),
+);
 }
 
   Widget _toolbarButton({

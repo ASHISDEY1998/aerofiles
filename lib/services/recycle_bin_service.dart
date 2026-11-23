@@ -41,13 +41,28 @@ class TrashedItem {
 }
 
 class RecycleBinService {
+  static final RecycleBinService instance = RecycleBinService();
   static const MethodChannel _storageChannel = MethodChannel('com.aerofiles.app/storage');
 
   Directory? _trashDir;
   File? _metaFile;
   final List<TrashedItem> _items = [];
+  final List<TrashedItem> _recentlyTrashed = [];
 
   List<TrashedItem> get items => List.unmodifiable(_items);
+  List<TrashedItem> get recentlyTrashed => List.unmodifiable(_recentlyTrashed);
+
+  void clearRecentlyTrashed() => _recentlyTrashed.clear();
+
+  Future<int> restoreRecentlyTrashed() async {
+    int count = 0;
+    final toRestore = List<TrashedItem>.from(_recentlyTrashed);
+    _recentlyTrashed.clear();
+    for (final item in toRestore) {
+      if (await restore(item)) count++;
+    }
+    return count;
+  }
 
   static Future<void> notifyMediaScanner(String filePath) async {
     try {
@@ -153,6 +168,7 @@ class RecycleBinService {
       );
 
       _items.insert(0, item);
+      _recentlyTrashed.add(item);
       await _saveMetadata();
       await notifyMediaScanner(filePath);
       return true;

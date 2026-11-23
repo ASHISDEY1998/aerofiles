@@ -167,11 +167,22 @@ class StorageAnalyzerService {
     // Sort large files descending
     largeFiles.sort((a, b) => b.size.compareTo(a.size));
 
-    // Filter duplicate groups
+    // Filter duplicate groups using fast binary sample hash verification
     final List<DuplicateGroup> duplicates = [];
     filesBySize.forEach((size, list) {
       if (list.length > 1) {
-        duplicates.add(DuplicateGroup(fileSize: size, files: list));
+        final Map<String, List<VfsNode>> hashGroups = {};
+        for (final node in list) {
+          final hash = _computeQuickHash(File(node.path));
+          if (hash.isNotEmpty) {
+            hashGroups.putIfAbsent(hash, () => []).add(node);
+          }
+        }
+        for (final entry in hashGroups.entries) {
+          if (entry.value.length > 1) {
+            duplicates.add(DuplicateGroup(fileSize: size, files: entry.value));
+          }
+        }
       }
     });
     duplicates.sort((a, b) => b.totalWastedBytes.compareTo(a.totalWastedBytes));
@@ -192,8 +203,37 @@ class StorageAnalyzerService {
       appBytes: appBytes,
       otherBytes: systemAndOtherBytes,
       largeFiles: largeFiles.take(50).toList(),
-      duplicateGroups: duplicates.take(20).toList(),
+      duplicateGroups: duplicates.take(50).toList(),
       junkCacheBytes: junkBytes,
     );
+  }
+
+  String _computeQuickHash(File file) {
+    try {
+      final len = file.lengthSync();
+      if (len == 0) return '0_empty';
+      final raf = file.openSync(mode: FileMode.read);
+      try {
+        final sampleSize = len < 8192 ? len : 4096;
+        final head = raf.readSync(sampleSize);
+        int tailSum = 0;
+        if (len > 8192) {
+          raf.setPositionSync(len - 4096);
+          final tail = raf.readSync(4096);
+          for (final b in tail) {
+            tailSum = (tailSum * 31 + b) & 0x7FFFFFFF;
+          }
+        }
+        int headSum = 0;
+        for (final b in head) {
+          headSum = (headSum * 31 + b) & 0x7FFFFFFF;
+        }
+        return '${len}_${headSum}_$tailSum';
+      } finally {
+        raf.closeSync();
+      }
+    } catch (_) {
+      return '';
+    }
   }
 }

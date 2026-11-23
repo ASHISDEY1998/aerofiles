@@ -1,11 +1,16 @@
 package com.aerofiles.app.aerofiles
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.media.ThumbnailUtils
 import android.os.Build
 import android.os.Environment
+import android.os.PowerManager
 import android.os.StatFs
 import android.util.Size
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -18,6 +23,67 @@ import java.util.concurrent.Executors
 class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.aerofiles.app/storage"
     private val thumbnailExecutor = Executors.newFixedThreadPool(4)
+    private var notificationManager: NotificationManager? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+    private val TRANSFER_CHANNEL_ID = "aerofiles_transfers"
+    private val TRANSFER_NOTIFICATION_ID = 2001
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                TRANSFER_CHANNEL_ID,
+                "File Transfers",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Progress notifications for background file copying, moving, and downloads"
+                setShowBadge(false)
+            }
+            notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager?.createNotificationChannel(channel)
+        } else {
+            notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        }
+    }
+
+    private fun updateTransferNotification(title: String, content: String, progress: Int, max: Int) {
+        if (notificationManager == null) createNotificationChannel()
+
+        if (wakeLock == null) {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AeroFiles::TransferWakeLock")
+            wakeLock?.acquire(20 * 60 * 1000L)
+        }
+
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(applicationContext, TRANSFER_CHANNEL_ID)
+        } else {
+            Notification.Builder(applicationContext)
+        }
+
+        builder.setContentTitle(title)
+            .setContentText(content)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+
+        if (max > 0) {
+            builder.setProgress(max, progress, false)
+        } else {
+            builder.setProgress(0, 0, true)
+        }
+
+        notificationManager?.notify(TRANSFER_NOTIFICATION_ID, builder.build())
+    }
+
+    private fun stopTransferNotification() {
+        notificationManager?.cancel(TRANSFER_NOTIFICATION_ID)
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+        } catch (_: Throwable) {}
+        wakeLock = null
+    }
 
     private fun isMpegTs(file: File): Boolean {
         try {
@@ -92,6 +158,18 @@ class MainActivity : FlutterFragmentActivity() {
                     } else {
                         result.success(false)
                     }
+                }
+                "updateTransferNotification" -> {
+                    val title = call.argument<String>("title") ?: "Transferring Files"
+                    val content = call.argument<String>("content") ?: "In progress..."
+                    val progress = call.argument<Int>("progress") ?: 0
+                    val max = call.argument<Int>("max") ?: 100
+                    updateTransferNotification(title, content, progress, max)
+                    result.success(true)
+                }
+                "stopTransferNotification" -> {
+                    stopTransferNotification()
+                    result.success(true)
                 }
                 "getVideoThumbnail" -> {
                     val path = call.argument<String>("path")

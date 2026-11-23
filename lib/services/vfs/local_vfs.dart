@@ -8,7 +8,8 @@ import 'vfs_provider.dart';
 class LocalVfs implements VfsProvider {
   final RecycleBinService? recycleBinService;
 
-  LocalVfs({this.recycleBinService});
+  LocalVfs({RecycleBinService? recycleBinService})
+      : recycleBinService = recycleBinService ?? RecycleBinService.instance;
 
   @override
   String get providerId => 'local';

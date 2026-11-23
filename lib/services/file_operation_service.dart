@@ -15,6 +15,38 @@ class FileOperationService {
   static final FileOperationService instance = FileOperationService._();
   FileOperationService._();
 
+  List<VfsNode> clipboardItems = [];
+  bool isClipboardCut = false;
+  VfsProvider? clipboardSourceVfs;
+
+  static const MethodChannel _storageChannel = MethodChannel('com.aerofiles.app/storage');
+
+  static Future<void> updateNotification({
+    required String title,
+    required String content,
+    required int progress,
+    required int max,
+  }) async {
+    try {
+      if (Platform.isAndroid) {
+        await _storageChannel.invokeMethod('updateTransferNotification', {
+          'title': title,
+          'content': content,
+          'progress': progress,
+          'max': max,
+        });
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> stopNotification() async {
+    try {
+      if (Platform.isAndroid) {
+        await _storageChannel.invokeMethod('stopTransferNotification');
+      }
+    } catch (_) {}
+  }
+
   Future<bool> copyItems({
     required List<VfsNode> items,
     required String targetDirPath,
@@ -23,38 +55,57 @@ class FileOperationService {
     void Function(double progress, String currentItem)? onProgress,
   }) async {
     bool allOk = true;
-    for (int i = 0; i < items.length; i++) {
-      final node = items[i];
-      onProgress?.call(i / items.length, node.name);
-      final destPath = p.join(targetDirPath, node.name);
+    try {
+      await updateNotification(
+        title: 'Transferring ${items.length} item${items.length == 1 ? '' : 's'}',
+        content: 'Starting file transfer...',
+        progress: 0,
+        max: 100,
+      );
 
-      try {
-        if (sourceVfs is LocalVfs && targetVfs is LocalVfs) {
-          final ok = await targetVfs.copy(node.path, destPath);
-          if (!ok) allOk = false;
-        } else if (sourceVfs is LocalVfs && targetVfs is SmbVfs) {
-          if (node.isDirectory) {
-            final ok = await _copyLocalDirToSmb(Directory(node.path), destPath, targetVfs);
+      for (int i = 0; i < items.length; i++) {
+        final node = items[i];
+        final pct = ((i / items.length) * 100).toInt();
+        onProgress?.call(i / items.length, node.name);
+        await updateNotification(
+          title: 'Transferring ${items.length} item${items.length == 1 ? '' : 's'}',
+          content: '$pct% • ${node.name}',
+          progress: pct,
+          max: 100,
+        );
+
+        final destPath = p.join(targetDirPath, node.name);
+
+        try {
+          if (sourceVfs is LocalVfs && targetVfs is LocalVfs) {
+            final ok = await targetVfs.copy(node.path, destPath);
             if (!ok) allOk = false;
-          } else {
-            final f = File(node.path);
-            if (await f.exists()) {
-              final ok = await targetVfs.writeLocalFile(destPath, f);
+          } else if (sourceVfs is LocalVfs && targetVfs is SmbVfs) {
+            if (node.isDirectory) {
+              final ok = await _copyLocalDirToSmb(Directory(node.path), destPath, targetVfs);
               if (!ok) allOk = false;
             } else {
-              allOk = false;
+              final f = File(node.path);
+              if (await f.exists()) {
+                final ok = await targetVfs.writeLocalFile(destPath, f);
+                if (!ok) allOk = false;
+              } else {
+                allOk = false;
+              }
             }
+          } else if (sourceVfs is SmbVfs && targetVfs is LocalVfs) {
+            final f = File(destPath);
+            final ok = await sourceVfs.readToLocalFile(node.path, f);
+            if (!ok) allOk = false;
           }
-        } else if (sourceVfs is SmbVfs && targetVfs is LocalVfs) {
-          final f = File(destPath);
-          final ok = await sourceVfs.readToLocalFile(node.path, f);
-          if (!ok) allOk = false;
+        } catch (_) {
+          allOk = false;
         }
-      } catch (_) {
-        allOk = false;
       }
+      onProgress?.call(1.0, 'Done');
+    } finally {
+      await stopNotification();
     }
-    onProgress?.call(1.0, 'Done');
     return allOk;
   }
 
