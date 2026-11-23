@@ -95,6 +95,29 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     _startHideTimer();
     _checkSavedPlaybackPosition();
 
+    // Auto-pause when Bluetooth audio disconnects or call arrives (AudioFocus loss / Noisy)
+    _mediaService.onAudioFocusInterrupted = () {
+      if (mounted) {
+        setState(() {
+          _showControls = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(CupertinoIcons.phone_down_fill, color: AppleColors.systemOrange, size: 18),
+                SizedBox(width: 10),
+                Text('Playback paused (Call / Audio redirected)'),
+              ],
+            ),
+            duration: const Duration(seconds: 4),
+            backgroundColor: AppleColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    };
+
     // Enable immersive sticky fullscreen
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 

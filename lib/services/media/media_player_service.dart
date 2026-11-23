@@ -1,9 +1,12 @@
+import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../log_service.dart';
 
 class MediaPlayerService {
   static bool _initialized = false;
+  static const MethodChannel _audioChannel = MethodChannel('com.aerofiles.app/storage');
 
   static void ensureInitialized() {
     if (!_initialized) {
@@ -16,6 +19,7 @@ class MediaPlayerService {
   late final VideoController controller;
 
   bool _isDisposed = false;
+  void Function()? onAudioFocusInterrupted;
 
   MediaPlayerService() {
     ensureInitialized();
@@ -54,6 +58,14 @@ class MediaPlayerService {
 
     _applySafeProperties();
 
+    _audioChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onAudioFocusLost' || call.method == 'onAudioBecomingNoisy') {
+        LogService.instance.info('PLAYER', 'Audio focus lost or becoming noisy (${call.method}) -> Pausing video');
+        await pause();
+        onAudioFocusInterrupted?.call();
+      }
+    });
+
     player.stream.error.listen((error) {
       LogService.instance.error('PLAYER', 'media_kit player error: $error');
     });
@@ -72,6 +84,22 @@ class MediaPlayerService {
     } catch (_) {}
   }
 
+  Future<void> requestAudioFocus() async {
+    try {
+      if (Platform.isAndroid) {
+        await _audioChannel.invokeMethod('requestAudioFocus');
+      }
+    } catch (_) {}
+  }
+
+  Future<void> abandonAudioFocus() async {
+    try {
+      if (Platform.isAndroid) {
+        await _audioChannel.invokeMethod('abandonAudioFocus');
+      }
+    } catch (_) {}
+  }
+
   Future<void> openMedia(String uri, {bool autoPlay = true}) async {
     try {
       LogService.instance.info('PLAYER', 'media_kit opening media uri: $uri');
@@ -80,6 +108,7 @@ class MediaPlayerService {
         play: autoPlay,
       );
       if (autoPlay) {
+        await requestAudioFocus();
         await player.play();
       }
     } catch (e, st) {
@@ -87,10 +116,21 @@ class MediaPlayerService {
     }
   }
 
-  Future<void> play() => player.play();
+  Future<void> play() async {
+    await requestAudioFocus();
+    return player.play();
+  }
+
   Future<void> pause() => player.pause();
   Future<void> stop() => player.stop();
-  Future<void> playOrPause() => player.playOrPause();
+
+  Future<void> playOrPause() async {
+    if (!player.state.playing) {
+      await requestAudioFocus();
+    }
+    return player.playOrPause();
+  }
+
   Future<void> seek(Duration duration) => player.seek(duration);
 
   Future<void> setVolume(double volume) {
@@ -113,6 +153,7 @@ class MediaPlayerService {
   void dispose() {
     if (!_isDisposed) {
       _isDisposed = true;
+      abandonAudioFocus();
       player.dispose();
     }
   }

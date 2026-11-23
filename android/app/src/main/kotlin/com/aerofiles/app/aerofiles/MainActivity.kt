@@ -3,8 +3,17 @@ package com.aerofiles.app.aerofiles
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.bluetooth.BluetoothA2dp
+import android.bluetooth.BluetoothHeadset
+import android.bluetooth.BluetoothProfile
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.media.ThumbnailUtils
@@ -27,6 +36,121 @@ class MainActivity : FlutterFragmentActivity() {
     private var wakeLock: PowerManager.WakeLock? = null
     private val TRANSFER_CHANNEL_ID = "aerofiles_transfers"
     private val TRANSFER_NOTIFICATION_ID = 2001
+
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var focusChangeListener: AudioManager.OnAudioFocusChangeListener? = null
+    private var becomingNoisyReceiver: BroadcastReceiver? = null
+    private var methodChannel: MethodChannel? = null
+
+    private fun setupAudioFocus() {
+        if (audioManager == null) {
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        }
+
+        if (focusChangeListener == null) {
+            focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+                when (focusChange) {
+                    AudioManager.AUDIOFOCUS_LOSS,
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onAudioFocusLost", null)
+                        }
+                    }
+                    AudioManager.AUDIOFOCUS_GAIN -> {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onAudioFocusGained", null)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val playbackAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                .build()
+
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(playbackAttributes)
+                .setAcceptsDelayedFocusGain(false)
+                .setOnAudioFocusChangeListener(focusChangeListener!!)
+                .build()
+
+            audioManager?.requestAudioFocus(audioFocusRequest!!)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager?.requestAudioFocus(
+                focusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            )
+        }
+
+        registerBecomingNoisyReceiver()
+    }
+
+    private fun abandonAudioFocus() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+                audioManager?.abandonAudioFocusRequest(audioFocusRequest!!)
+                audioFocusRequest = null
+            } else if (focusChangeListener != null) {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(focusChangeListener)
+            }
+        } catch (_: Throwable) {}
+
+        unregisterBecomingNoisyReceiver()
+    }
+
+    private fun registerBecomingNoisyReceiver() {
+        if (becomingNoisyReceiver == null) {
+            becomingNoisyReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    val action = intent?.action
+                    if (action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onAudioBecomingNoisy", null)
+                        }
+                    } else if (action == BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED ||
+                               action == BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED) {
+                        val state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, BluetoothProfile.STATE_CONNECTED)
+                        if (state == BluetoothProfile.STATE_DISCONNECTED || state == BluetoothProfile.STATE_DISCONNECTING) {
+                            runOnUiThread {
+                                methodChannel?.invokeMethod("onAudioBecomingNoisy", null)
+                            }
+                        }
+                    }
+                }
+            }
+
+            val filter = IntentFilter().apply {
+                addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+                addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+                addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
+            }
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    registerReceiver(becomingNoisyReceiver, filter, Context.RECEIVER_EXPORTED)
+                } else {
+                    registerReceiver(becomingNoisyReceiver, filter)
+                }
+            } catch (_: Throwable) {}
+        }
+    }
+
+    private fun unregisterBecomingNoisyReceiver() {
+        if (becomingNoisyReceiver != null) {
+            try {
+                unregisterReceiver(becomingNoisyReceiver)
+            } catch (_: Throwable) {}
+            becomingNoisyReceiver = null
+        }
+    }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -107,8 +231,17 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
+                "requestAudioFocus" -> {
+                    setupAudioFocus()
+                    result.success(true)
+                }
+                "abandonAudioFocus" -> {
+                    abandonAudioFocus()
+                    result.success(true)
+                }
                 "getStorageStats" -> {
                     try {
                         val path = call.argument<String>("path") ?: Environment.getExternalStorageDirectory().path
@@ -336,5 +469,11 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        abandonAudioFocus()
+        stopTransferNotification()
+        super.onDestroy()
     }
 }
