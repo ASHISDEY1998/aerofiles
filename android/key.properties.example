@@ -1,0 +1,7 @@
+# Example signing configuration for AeroFiles release APK/Bundle
+# Copy this file to 'key.properties' and fill in your keystore credentials:
+#
+# keyAlias=my-release-key
+# keyPassword=my-key-password
+# storeFile=/path/to/my-release-keystore.jks
+# storePassword=my-store-password

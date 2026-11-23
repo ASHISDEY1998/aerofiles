@@ -46,4 +46,11 @@ app.*.map.json
 *.apk
 *.aab
 
+# Android keystores and private build configuration
+android/key.properties
+android/local.properties
+*.jks
+*.keystore
+
+
 
