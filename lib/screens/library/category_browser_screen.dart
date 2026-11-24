@@ -923,124 +923,117 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
   }
 
   Widget _buildFolderGridCard(MediaFolderGroup folder, bool isDark) {
-    return AppleCard(
-      onTap: () => setState(() => _selectedFolderGroup = folder),
-      padding: EdgeInsets.zero,
-      borderRadius: 14,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Thumbnail Preview with overlay badge
-          Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _buildFolderThumbnail(folder),
-                  // Dark bottom gradient for readability
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 36,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.transparent, Color(0x99000000)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => setState(() => _selectedFolderGroup = folder),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail Preview with overlay badge
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildFolderThumbnail(folder),
+                    // Dark bottom gradient for readability
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 36,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.transparent, Color(0x99000000)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  // Top-left Folder Pill Badge
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(CupertinoIcons.folder_fill, size: 11, color: AppleColors.systemBlue),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${folder.items.length}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Top-right video badge if applicable
-                  if (folder.previewNode.isVideo)
+                    // Top-left Folder Pill Badge
                     Positioned(
                       top: 8,
-                      right: 8,
+                      left: 8,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.75),
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Icon(CupertinoIcons.play_fill, size: 10, color: Colors.white),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(CupertinoIcons.folder_fill, size: 11, color: AppleColors.systemBlue),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${folder.items.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                    // Top-right video badge if applicable
+                    if (folder.previewNode.isVideo)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.75),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(CupertinoIcons.play_fill, size: 10, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Folder Details
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 6, 4, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    folder.folderName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${folder.items.length} items • ${_formatBytes(folder.totalBytes)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-
-          // Folder Details
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  folder.folderName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : AppleColors.textPrimaryLight,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${folder.items.length} items • ${_formatBytes(folder.totalBytes)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  folder.displayPath,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -122,7 +122,7 @@ class _HomeShellState extends State<HomeShell> {
                         ),
                       ),
                       Text(
-                        'v1.0.14 Pro',
+                        'v2.0.0 Pro',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
@@ -149,16 +149,16 @@ class _HomeShellState extends State<HomeShell> {
                   _buildSidebarSectionHeader('LOCATIONS', isDark),
                   _buildSidebarItem(
                     index: 0,
-                    icon: CupertinoIcons.folder_fill,
-                    iconColor: AppleColors.systemBlue,
-                    label: 'Internal Storage',
+                    icon: CupertinoIcons.gauge,
+                    iconColor: AppleColors.systemIndigo,
+                    label: 'Dashboard',
                     isDark: isDark,
                   ),
                   _buildSidebarItem(
                     index: 1,
-                    icon: CupertinoIcons.gauge,
-                    iconColor: AppleColors.systemIndigo,
-                    label: 'Dashboard',
+                    icon: CupertinoIcons.folder_fill,
+                    iconColor: AppleColors.systemBlue,
+                    label: 'Internal Storage',
                     isDark: isDark,
                   ),
                   _buildSidebarItem(
@@ -306,12 +306,12 @@ class _HomeShellState extends State<HomeShell> {
 
     if (isTabletLandscape) {
       final tabletPages = [
+        LocalTab(localVfs: _localVfs, recycleBinService: _recycleBinService),
         DirectoryBrowserScreen(
           vfs: _localVfs,
           initialPath: _localVfs.rootPath,
           title: 'Internal Storage',
         ),
-        LocalTab(localVfs: _localVfs, recycleBinService: _recycleBinService),
         RecycleBinScreen(recycleBinService: _recycleBinService),
         LibraryTab(localVfs: _localVfs),
         NetworkTab(localVfs: _localVfs),

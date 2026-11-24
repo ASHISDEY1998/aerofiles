@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ class AppUpdateInfo {
   final String apkUrl;
   final int apkSize;
   final bool hasUpdate;
+  final DateTime? publishedAt;
 
   AppUpdateInfo({
     required this.currentVersion,
@@ -26,6 +28,7 @@ class AppUpdateInfo {
     required this.apkUrl,
     required this.apkSize,
     required this.hasUpdate,
+    this.publishedAt,
   });
 }
 
@@ -36,28 +39,79 @@ class AppUpdateService {
   static const String _releasesApiUrl =
       'https://api.github.com/repos/ASHISDEY1998/aerofiles/releases/latest';
 
+  /// Release compilation timestamp (UTC) for the installed build.
+  /// Used for release date/time comparison alongside SemVer.
+  static final DateTime localReleaseDate = DateTime.utc(2026, 11, 24, 11, 30, 0);
+
   bool _isChecking = false;
   bool _isDialogShowing = false;
 
-  static bool isNewerVersion(String remote, String local) {
+  /// Compares [remote] version against [local] version.
+  /// Returns 1 if remote > local, -1 if remote < local, 0 if identical.
+  static int compareVersions(String remote, String local) {
     final cleanRemote = remote.replaceAll(RegExp(r'^[vV]'), '').trim();
     final cleanLocal = local.replaceAll(RegExp(r'^[vV]'), '').trim();
 
-    final rParts = cleanRemote.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-    final lParts = cleanLocal.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final rParts = cleanRemote
+        .split(RegExp(r'[.+_-]'))
+        .map((e) => int.tryParse(e) ?? 0)
+        .toList();
+    final lParts = cleanLocal
+        .split(RegExp(r'[.+_-]'))
+        .map((e) => int.tryParse(e) ?? 0)
+        .toList();
 
-    while (rParts.length < 3) {
-      rParts.add(0);
+    final maxLen = rParts.length > lParts.length ? rParts.length : lParts.length;
+    for (int i = 0; i < maxLen; i++) {
+      final rVal = i < rParts.length ? rParts[i] : 0;
+      final lVal = i < lParts.length ? lParts[i] : 0;
+      if (rVal > lVal) return 1;
+      if (rVal < lVal) return -1;
     }
-    while (lParts.length < 3) {
-      lParts.add(0);
+    return 0;
+  }
+
+  /// Determines whether an update is available by evaluating both
+  /// Semantic Versioning and the Release Published Timestamp.
+  /// This ensures updates are reliably detected by release date/time
+  /// rather than depending solely on version ID strings.
+  static bool isUpdateAvailable({
+    required String remoteTag,
+    required String localVersion,
+    required String localBuildNumber,
+    required DateTime? remotePublishedAt,
+    DateTime? localBuildDate,
+  }) {
+    // 1. Semantic Version comparison
+    final semVerComparison = compareVersions(remoteTag, localVersion);
+    if (semVerComparison > 0) return true;
+    if (semVerComparison < 0) return false;
+
+    // 2. If SemVer versions are equal, check the release published timestamp
+    if (remotePublishedAt != null) {
+      final baseDate = localBuildDate ?? localReleaseDate;
+      // If remote release was published after the local build date (+10 min buffer)
+      if (remotePublishedAt.isAfter(baseDate.add(const Duration(minutes: 10)))) {
+        return true;
+      }
     }
 
-    for (int i = 0; i < 3; i++) {
-      if (rParts[i] > lParts[i]) return true;
-      if (rParts[i] < lParts[i]) return false;
-    }
     return false;
+  }
+
+  /// Legacy helper for backwards compatibility
+  static bool isNewerVersion(String remote, String local) {
+    return compareVersions(remote, local) > 0;
+  }
+
+  static String _detectDeviceAbi() {
+    try {
+      final abi = Abi.current();
+      if (abi == Abi.androidArm64) return 'arm64';
+      if (abi == Abi.androidArm) return 'armv7';
+      if (abi == Abi.androidX64) return 'x86_64';
+    } catch (_) {}
+    return 'arm64'; // Default to arm64-v8a for modern Android
   }
 
   Future<AppUpdateInfo?> checkForUpdate() async {
@@ -67,6 +121,7 @@ class AppUpdateService {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
+      final currentBuildNumber = packageInfo.buildNumber;
 
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 8);
@@ -88,20 +143,55 @@ class AppUpdateService {
       final releaseTitle = (json['name'] as String?) ?? 'AeroFiles Update';
       final releaseNotes = (json['body'] as String?) ?? '';
       final assets = (json['assets'] as List<dynamic>?) ?? [];
+      final publishedAtStr = json['published_at'] as String?;
+      final publishedAt = publishedAtStr != null ? DateTime.tryParse(publishedAtStr) : null;
 
+      // Select best APK asset matching device architecture
+      final targetAbi = _detectDeviceAbi();
       String apkUrl = '';
       int apkSize = 0;
 
+      // 1. Try matching target ABI (e.g. AeroFiles-arm64-v8a.apk)
       for (final asset in assets) {
         final name = (asset['name'] as String?) ?? '';
-        if (name.toLowerCase().endsWith('.apk')) {
+        if (name.toLowerCase().endsWith('.apk') && name.toLowerCase().contains(targetAbi)) {
           apkUrl = (asset['browser_download_url'] as String?) ?? '';
           apkSize = (asset['size'] as int?) ?? 0;
           break;
         }
       }
 
-      final hasUpdate = isNewerVersion(rawTag, currentVersion) && apkUrl.isNotEmpty;
+      // 2. Try universal AeroFiles.apk
+      if (apkUrl.isEmpty) {
+        for (final asset in assets) {
+          final name = (asset['name'] as String?) ?? '';
+          final lower = name.toLowerCase();
+          if (lower.endsWith('.apk') && !lower.contains('armv7') && !lower.contains('x86')) {
+            apkUrl = (asset['browser_download_url'] as String?) ?? '';
+            apkSize = (asset['size'] as int?) ?? 0;
+            break;
+          }
+        }
+      }
+
+      // 3. Fallback to any APK
+      if (apkUrl.isEmpty) {
+        for (final asset in assets) {
+          final name = (asset['name'] as String?) ?? '';
+          if (name.toLowerCase().endsWith('.apk')) {
+            apkUrl = (asset['browser_download_url'] as String?) ?? '';
+            apkSize = (asset['size'] as int?) ?? 0;
+            break;
+          }
+        }
+      }
+
+      final hasUpdate = isUpdateAvailable(
+        remoteTag: rawTag,
+        localVersion: currentVersion,
+        localBuildNumber: currentBuildNumber,
+        remotePublishedAt: publishedAt,
+      ) && apkUrl.isNotEmpty;
 
       return AppUpdateInfo(
         currentVersion: currentVersion,
@@ -111,6 +201,7 @@ class AppUpdateService {
         apkUrl: apkUrl,
         apkSize: apkSize,
         hasUpdate: hasUpdate,
+        publishedAt: publishedAt,
       );
     } catch (e) {
       debugPrint('Check for update error: $e');

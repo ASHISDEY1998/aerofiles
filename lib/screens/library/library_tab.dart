@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import '../../models/vfs_node.dart';
+import '../../services/settings_service.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/apple_card.dart';
@@ -27,10 +28,12 @@ class _LibraryTabState extends State<LibraryTab> {
   };
   final List<VfsNode> _recentFiles = [];
   bool _isLoading = true;
+  bool _isGrid = true;
 
   @override
   void initState() {
     super.initState();
+    _isGrid = SettingsService.instance.isGridView;
     _scanLibrary();
   }
 
@@ -228,6 +231,82 @@ class _LibraryTabState extends State<LibraryTab> {
     );
   }
 
+  Widget _buildGridCategoryItem({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required List<VfsNode> items,
+    required bool isDark,
+  }) {
+    int totalBytes = 0;
+    for (final i in items) {
+      totalBytes += i.size;
+    }
+    String sizeStr = '';
+    if (totalBytes < 1024 * 1024) {
+      sizeStr = '${(totalBytes / 1024).toStringAsFixed(1)} KB';
+    } else if (totalBytes < 1024 * 1024 * 1024) {
+      sizeStr = '${(totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    } else {
+      sizeStr = '${(totalBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    }
+
+    final countStr = '${items.length} files • $sizeStr';
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _openCategory(title, items),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Borderless Logo / Icon Squircle
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: isDark ? 0.18 : 0.12),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: color, size: 36),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                countStr,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -243,14 +322,34 @@ class _LibraryTabState extends State<LibraryTab> {
             ),
             backgroundColor: isDark ? const Color(0xCC000000) : const Color(0xCCF2F2F7),
             border: null,
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _scanLibrary,
-              child: Icon(
-                CupertinoIcons.arrow_clockwise,
-                size: 20,
-                color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-              ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    setState(() {
+                      _isGrid = !_isGrid;
+                    });
+                    SettingsService.instance.setGridView(_isGrid);
+                  },
+                  child: Icon(
+                    _isGrid ? CupertinoIcons.list_bullet : CupertinoIcons.square_grid_2x2,
+                    size: 20,
+                    color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: _scanLibrary,
+                  child: Icon(
+                    CupertinoIcons.arrow_clockwise,
+                    size: 20,
+                    color: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                  ),
+                ),
+              ],
             ),
           ),
           SliverPadding(
@@ -268,45 +367,91 @@ class _LibraryTabState extends State<LibraryTab> {
                       ),
                     ),
                   )
-                : SliverList(
-                    delegate: SliverChildListDelegate([
-                      _buildLibraryCard(
-                        icon: CupertinoIcons.play_rectangle_fill,
-                        color: AppleColors.catVideos,
-                        title: 'Videos',
-                        items: _categorizedFiles[FileCategory.video]!,
+                : _isGrid
+                    ? SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 200,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.96,
+                        ),
+                        delegate: SliverChildListDelegate([
+                          _buildGridCategoryItem(
+                            icon: CupertinoIcons.play_rectangle_fill,
+                            color: AppleColors.catVideos,
+                            title: 'Videos',
+                            items: _categorizedFiles[FileCategory.video]!,
+                            isDark: isDark,
+                          ),
+                          _buildGridCategoryItem(
+                            icon: CupertinoIcons.photo_fill,
+                            color: AppleColors.catImages,
+                            title: 'Images',
+                            items: _categorizedFiles[FileCategory.image]!,
+                            isDark: isDark,
+                          ),
+                          _buildGridCategoryItem(
+                            icon: CupertinoIcons.music_note_2,
+                            color: AppleColors.catAudio,
+                            title: 'Audio',
+                            items: _categorizedFiles[FileCategory.audio]!,
+                            isDark: isDark,
+                          ),
+                          _buildGridCategoryItem(
+                            icon: CupertinoIcons.doc_text_fill,
+                            color: AppleColors.catDocs,
+                            title: 'Documents',
+                            items: _categorizedFiles[FileCategory.document]!,
+                            isDark: isDark,
+                          ),
+                          _buildGridCategoryItem(
+                            icon: CupertinoIcons.clock_fill,
+                            color: AppleColors.systemPurple,
+                            title: 'Recent Files',
+                            items: _recentFiles,
+                            isDark: isDark,
+                          ),
+                        ]),
+                      )
+                    : SliverList(
+                        delegate: SliverChildListDelegate([
+                          _buildLibraryCard(
+                            icon: CupertinoIcons.play_rectangle_fill,
+                            color: AppleColors.catVideos,
+                            title: 'Videos',
+                            items: _categorizedFiles[FileCategory.video]!,
+                          ),
+                          const SizedBox(height: 10),
+                          _buildLibraryCard(
+                            icon: CupertinoIcons.photo_fill,
+                            color: AppleColors.catImages,
+                            title: 'Images',
+                            items: _categorizedFiles[FileCategory.image]!,
+                          ),
+                          const SizedBox(height: 10),
+                          _buildLibraryCard(
+                            icon: CupertinoIcons.music_note_2,
+                            color: AppleColors.catAudio,
+                            title: 'Audio',
+                            items: _categorizedFiles[FileCategory.audio]!,
+                          ),
+                          const SizedBox(height: 10),
+                          _buildLibraryCard(
+                            icon: CupertinoIcons.doc_text_fill,
+                            color: AppleColors.catDocs,
+                            title: 'Documents',
+                            items: _categorizedFiles[FileCategory.document]!,
+                          ),
+                          const SizedBox(height: 10),
+                          _buildLibraryCard(
+                            icon: CupertinoIcons.clock_fill,
+                            color: AppleColors.systemPurple,
+                            title: 'Recent Files',
+                            items: _recentFiles,
+                          ),
+                          const SizedBox(height: 24),
+                        ]),
                       ),
-                      const SizedBox(height: 10),
-                      _buildLibraryCard(
-                        icon: CupertinoIcons.photo_fill,
-                        color: AppleColors.catImages,
-                        title: 'Images',
-                        items: _categorizedFiles[FileCategory.image]!,
-                      ),
-                      const SizedBox(height: 10),
-                      _buildLibraryCard(
-                        icon: CupertinoIcons.music_note_2,
-                        color: AppleColors.catAudio,
-                        title: 'Audio',
-                        items: _categorizedFiles[FileCategory.audio]!,
-                      ),
-                      const SizedBox(height: 10),
-                      _buildLibraryCard(
-                        icon: CupertinoIcons.doc_text_fill,
-                        color: AppleColors.catDocs,
-                        title: 'Documents',
-                        items: _categorizedFiles[FileCategory.document]!,
-                      ),
-                      const SizedBox(height: 10),
-                      _buildLibraryCard(
-                        icon: CupertinoIcons.clock_fill,
-                        color: AppleColors.systemPurple,
-                        title: 'Recent Files',
-                        items: _recentFiles,
-                      ),
-                      const SizedBox(height: 24),
-                    ]),
-                  ),
           ),
         ],
       ),

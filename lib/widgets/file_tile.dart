@@ -213,7 +213,7 @@ class FileTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: isSelected
                   ? (isDark ? AppleColors.systemBlue.withValues(alpha: 0.25) : AppleColors.systemBlueLight.withValues(alpha: 0.15))
-                  : (isDark ? AppleColors.darkCard : AppleColors.lightCard),
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
               border: isSelected
                   ? Border.all(color: AppleColors.systemBlue, width: 1.5)

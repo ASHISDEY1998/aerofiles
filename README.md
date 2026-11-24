@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.14_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.0.0_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -26,7 +26,7 @@
 
 ---
 
-## 📲 Direct Downloads (v1.0.14 / Build 15)
+## 📲 Direct Downloads (v2.0.0 / Build 16)
 
 Download the official standalone release for your device architecture:
 
@@ -86,6 +86,7 @@ Download the official standalone release for your device architecture:
 
 ### 📁 3. Media Library with Parent-Folder Segregation (Cx Style)
 * **Parent-Folder Grouping:** In the Videos and Photos sections, media files are organized by their immediate parent directory (e.g. `Camera`, `Screenshots`, `WhatsApp Video`, `Movies`, `Downloads`, `Instagram`).
+* **Borderless Grid View & List View:** Media Library supports instant toggling between List view and Grid view. In Grid view, cards and borders are removed in favor of clean, borderless, floating category icons for a modern, uncluttered look.
 * **Visual Folder Cards:** Shows thumbnail previews, item counts, aggregated folder sizes, and last modified dates.
 * **Quick View Toggle:** Switch seamlessly between **By Folder** and **All Files** modes with a single tap.
 * **Deep Category Filtering:** Dedicated tabs for Videos, Images, Audio, Documents, Applications (APKs), and Archives (ZIP/RAR/7Z).
@@ -116,7 +117,7 @@ Download the official standalone release for your device architecture:
 ---
 
 ### 📱 6. Tablet, Foldable & Desktop UX
-* **Two-Pane Split View (Landscape):** On tablets, foldables, and Samsung DeX, a landscape two-pane layout displays directory categories on the left (30%) and the file browser grid on the right (70%).
+* **Dashboard Default & Two-Pane Split View:** On tablets, foldables, and Samsung DeX, the app defaults to the full Home Dashboard (Main Storage gauge, Downloads, Safe Vault, Recycle Bin, Storage Analyzer) with a left navigation sidebar (30%) and content pane (70%).
 * **Hardware Keyboard Shortcuts:**
   * <kbd>Space</kbd>: Quick Preview
   * <kbd>Delete</kbd> / <kbd>Backspace</kbd>: Move to Recycle Bin
