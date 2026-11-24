@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/vfs_node.dart';
 import '../theme/apple_theme.dart';
@@ -169,6 +170,26 @@ class FileOperationService {
     if (localFiles.isNotEmpty) {
       await SharePlus.instance.share(ShareParams(files: localFiles));
     }
+  }
+
+  Future<void> openWith(VfsNode node) async {
+    if (node.isDirectory) return;
+    try {
+      if (Platform.isAndroid) {
+        final success = await _storageChannel.invokeMethod<bool>('openWith', {
+          'path': node.path,
+          'mimeType': node.mimeType,
+        });
+        if (success == true) return;
+      }
+    } catch (_) {}
+
+    try {
+      await OpenFilex.open(
+        node.path,
+        type: node.mimeType.isNotEmpty ? node.mimeType : null,
+      );
+    } catch (_) {}
   }
 
   void showFileInfo(BuildContext context, VfsNode node) {

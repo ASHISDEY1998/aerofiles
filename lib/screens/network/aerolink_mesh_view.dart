@@ -270,45 +270,38 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    isActive
-                        ? 'AeroLink active • Ready to share and stream'
-                        : 'Turn on to share folders and stream files with your other devices.',
-                    style: const TextStyle(color: AppleColors.textSecondary, fontSize: 13),
-                  ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
                           isActive
-                              ? 'Sharing ${shares.length} item${shares.length == 1 ? '' : 's'} as "${_service.deviceName}"'
-                              : '${shares.length} item${shares.length == 1 ? '' : 's'} configured',
+                              ? 'Active • ${_service.deviceName} (${shares.length} shared)'
+                              : 'Private peer-to-peer file sharing',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
                             color: isActive ? AppleColors.systemGreen : AppleColors.textSecondary,
+                            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       CupertinoButton(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         minimumSize: Size.zero,
-                        color: AppleColors.systemBlue.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
+                        color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                        borderRadius: BorderRadius.circular(12),
                         onPressed: _openSharesSheet,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(CupertinoIcons.gear_alt, size: 14, color: AppleColors.systemBlue),
-                            const SizedBox(width: 4),
+                            const Icon(CupertinoIcons.gear_alt, size: 13, color: AppleColors.systemBlue),
+                            const SizedBox(width: 5),
                             Text(
-                              'PIN: ${_service.pairingPin}',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppleColors.systemBlue),
+                              'Code: ${_service.pairingPin}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppleColors.systemBlue),
                             ),
                           ],
                         ),

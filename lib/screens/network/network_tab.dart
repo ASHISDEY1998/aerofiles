@@ -426,20 +426,39 @@ class _NetworkTabState extends State<NetworkTab> {
                     Row(
                       children: [
                         CupertinoButton(
-                          padding: const EdgeInsets.only(right: 6),
-                          onPressed: _isPingingAll ? null : _pingAllConnections,
-                          child: _isPingingAll
-                              ? const CupertinoActivityIndicator(radius: 8)
-                              : const Icon(CupertinoIcons.arrow_clockwise, size: 16, color: AppleColors.systemBlue),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          minimumSize: Size.zero,
+                          borderRadius: BorderRadius.circular(10),
+                          color: AppleColors.systemBlue.withValues(alpha: 0.12),
+                          onPressed: _isScanning ? null : _startLanScan,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_isScanning)
+                                const CupertinoActivityIndicator(radius: 6)
+                              else
+                                const Icon(CupertinoIcons.arrow_clockwise, size: 12, color: AppleColors.systemBlue),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isScanning ? '${(_scanProgress * 100).toInt()}%' : 'Scan LAN',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppleColors.systemBlue),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         CupertinoButton(
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          minimumSize: Size.zero,
+                          borderRadius: BorderRadius.circular(10),
+                          color: AppleColors.systemBlue.withValues(alpha: 0.12),
                           onPressed: () => _showAddConnectionDialog(),
                           child: const Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(CupertinoIcons.plus_circle_fill, size: 16, color: AppleColors.systemBlue),
+                              Icon(CupertinoIcons.plus, size: 12, color: AppleColors.systemBlue),
                               SizedBox(width: 4),
-                              Text('Add', style: TextStyle(color: AppleColors.systemBlue, fontSize: 14)),
+                              Text('Add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppleColors.systemBlue)),
                             ],
                           ),
                         ),
@@ -447,6 +466,18 @@ class _NetworkTabState extends State<NetworkTab> {
                     ),
                   ],
                 ),
+
+                if (_isScanning) ...[
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _scanProgress,
+                      backgroundColor: AppleColors.darkElevated,
+                      valueColor: const AlwaysStoppedAnimation(AppleColors.systemBlue),
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 10),
 
@@ -599,7 +630,7 @@ class _NetworkTabState extends State<NetworkTab> {
                               children: [
                                 Text('No Saved Servers', style: TextStyle(color: AppleColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
                                 SizedBox(height: 2),
-                                Text('Tap "+ Add" or scan your local network below.', style: TextStyle(color: AppleColors.textSecondary, fontSize: 12)),
+                                Text('Tap "+ Add" to connect an SMB, SFTP, or WebDAV drive.', style: TextStyle(color: AppleColors.textSecondary, fontSize: 12)),
                               ],
                             ),
                           ),
@@ -608,185 +639,118 @@ class _NetworkTabState extends State<NetworkTab> {
                     ),
                   ),
 
-                const SizedBox(height: 20),
-
-                // LAN Auto Scan Section
-                AppleCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                if (_discoveredDevices.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Scan Local Network (LAN)',
-                                  style: TextStyle(
-                                    color: AppleColors.textPrimary,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Auto-detect SMB, NAS, and PC shares on Wi-Fi',
-                                  style: TextStyle(color: AppleColors.textSecondary, fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          CupertinoButton(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                            color: AppleColors.systemBlue,
-                            borderRadius: BorderRadius.circular(16),
-                            onPressed: _isScanning ? null : _startLanScan,
-                            child: Text(
-                              _isScanning ? 'Scanning...' : 'Scan LAN',
-                              style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'Discovered on Local Network (${_discoveredDevices.length})',
+                        style: const TextStyle(color: AppleColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
                       ),
-                      if (_isScanning) ...[
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ..._discoveredDevices.map((dev) {
+                    final isSmb = dev.serviceType.contains('SMB');
+                    final isSftp = dev.serviceType.contains('SFTP');
+                    final isWeb = dev.serviceType.contains('WebDAV') || dev.serviceType.contains('HTTP');
+
+                    final icon = isSmb
+                        ? CupertinoIcons.desktopcomputer
+                        : isSftp
+                            ? Icons.terminal_rounded
+                            : isWeb
+                                ? CupertinoIcons.cloud_fill
+                                : CupertinoIcons.folder_fill_badge_person_crop;
+
+                    final color = isSmb
+                        ? AppleColors.systemBlue
+                        : isSftp
+                            ? AppleColors.systemPurple
+                            : isWeb
+                                ? AppleColors.systemOrange
+                                : AppleColors.systemGreen;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppleColors.darkElevated,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white12, width: 0.5),
+                        ),
+                        child: Row(
                           children: [
-                            const Text('Probing subnet...', style: TextStyle(color: AppleColors.textSecondary, fontSize: 12)),
-                            Text('${(_scanProgress * 100).toInt()}%', style: const TextStyle(color: AppleColors.systemBlue, fontSize: 12, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: _scanProgress,
-                            backgroundColor: AppleColors.darkElevated,
-                            valueColor: const AlwaysStoppedAnimation(AppleColors.systemBlue),
-                          ),
-                        ),
-                      ],
-                      if (_discoveredDevices.isNotEmpty) ...[
-                        const SizedBox(height: 18),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Discovered Devices (${_discoveredDevices.length}):',
-                              style: const TextStyle(color: AppleColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                            const Text('1-Tap Connect', style: TextStyle(color: AppleColors.systemBlue, fontSize: 11)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        ..._discoveredDevices.map((dev) {
-                          final isSmb = dev.serviceType.contains('SMB');
-                          final isSftp = dev.serviceType.contains('SFTP');
-                          final isWeb = dev.serviceType.contains('WebDAV') || dev.serviceType.contains('HTTP');
-
-                          final icon = isSmb
-                              ? CupertinoIcons.desktopcomputer
-                              : isSftp
-                                  ? Icons.terminal_rounded
-                                  : isWeb
-                                      ? CupertinoIcons.cloud_fill
-                                      : CupertinoIcons.folder_fill_badge_person_crop;
-
-                          final color = isSmb
-                              ? AppleColors.systemBlue
-                              : isSftp
-                                  ? AppleColors.systemPurple
-                                  : isWeb
-                                      ? AppleColors.systemOrange
-                                      : AppleColors.systemGreen;
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            Container(
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
-                                color: AppleColors.darkElevated,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.white12, width: 0.5),
+                                color: color.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Row(
+                              alignment: Alignment.center,
+                              child: Icon(icon, color: color, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: color.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Icon(icon, color: color, size: 20),
+                                  Text(
+                                    dev.hostname,
+                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        '${dev.serviceType} • ${dev.ip}:${dev.port}',
+                                        style: const TextStyle(color: AppleColors.textSecondary, fontSize: 11),
+                                      ),
+                                      if (dev.pingMs != null) ...[
+                                        const SizedBox(width: 6),
                                         Text(
-                                          dev.hostname,
-                                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Row(
-                                          children: [
-                                            Text(
-                                              '${dev.serviceType} • ${dev.ip}:${dev.port}',
-                                              style: const TextStyle(color: AppleColors.textSecondary, fontSize: 11),
-                                            ),
-                                            if (dev.pingMs != null) ...[
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                '(${dev.pingMs}ms)',
-                                                style: const TextStyle(color: AppleColors.systemGreen, fontSize: 11),
-                                              ),
-                                            ],
-                                          ],
+                                          '(${dev.pingMs}ms)',
+                                          style: const TextStyle(color: AppleColors.systemGreen, fontSize: 11),
                                         ),
                                       ],
-                                    ),
-                                  ),
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                    color: AppleColors.systemBlueSubtle,
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: const Text(
-                                      'Connect',
-                                      style: TextStyle(color: AppleColors.systemBlue, fontSize: 13, fontWeight: FontWeight.bold),
-                                    ),
-                                    onPressed: () {
-                                      _showAddConnectionDialog(
-                                        prefilledHost: dev.ip,
-                                        prefilledPort: dev.port,
-                                        prefilledProtocol: isSftp
-                                            ? ProtocolType.sftp
-                                            : isWeb
-                                                ? ProtocolType.webdav
-                                                : dev.serviceType.contains('FTP')
-                                                    ? ProtocolType.ftp
-                                                    : ProtocolType.smb,
-                                        prefilledName: dev.hostname,
-                                      );
-                                    },
+                                    ],
                                   ),
                                 ],
                               ),
                             ),
-                          );
-                        }),
-                      ],
-                    ],
-                  ),
-                ),
+                            CupertinoButton(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              color: AppleColors.systemBlueSubtle,
+                              borderRadius: BorderRadius.circular(12),
+                              child: const Text(
+                                'Connect',
+                                style: TextStyle(color: AppleColors.systemBlue, fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                              onPressed: () {
+                                _showAddConnectionDialog(
+                                  prefilledHost: dev.ip,
+                                  prefilledPort: dev.port,
+                                  prefilledProtocol: isSftp
+                                      ? ProtocolType.sftp
+                                      : isWeb
+                                          ? ProtocolType.webdav
+                                          : dev.serviceType.contains('FTP')
+                                              ? ProtocolType.ftp
+                                              : ProtocolType.smb,
+                                  prefilledName: dev.hostname,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
                 const SizedBox(height: 24),
               ]),
             ),

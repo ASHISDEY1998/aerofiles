@@ -165,47 +165,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                 children: [
-                  // Hero Header Card (Apple Profile Style)
+                  // Hero Header Card (Apple Inset Profile Style)
                   Container(
                     margin: const EdgeInsets.only(bottom: 24),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
-                        width: 0.8,
+                        width: 0.6,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
                     ),
                     child: Row(
                       children: [
                         Container(
-                          width: 56,
-                          height: 56,
+                          width: 52,
+                          height: 52,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppleColors.systemBlue, AppleColors.systemIndigo],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(13),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppleColors.systemBlue.withValues(alpha: 0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
+                            color: AppleColors.systemBlue,
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           alignment: Alignment.center,
-                          child: const Icon(CupertinoIcons.folder_fill, color: Colors.white, size: 28),
+                          child: const Icon(CupertinoIcons.folder_fill, color: Colors.white, size: 26),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -691,7 +673,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           showLicensePage(
                             context: context,
                             applicationName: 'AeroFiles',
-                            applicationVersion: '2.1.5',
+                            applicationVersion: '2.1.6',
                           );
                         },
                         isDark: isDark,
@@ -702,8 +684,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         trailing: FutureBuilder<PackageInfo>(
                           future: PackageInfo.fromPlatform(),
                           builder: (context, snapshot) {
-                            final version = snapshot.hasData ? snapshot.data!.version : '2.1.5';
-                            final build = snapshot.hasData ? snapshot.data!.buildNumber : '22';
+                            final version = snapshot.hasData ? snapshot.data!.version : '2.1.6';
+                            final build = snapshot.hasData ? snapshot.data!.buildNumber : '23';
                             return Text(
                               '$version (Build $build)',
                               style: TextStyle(

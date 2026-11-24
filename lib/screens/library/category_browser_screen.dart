@@ -754,6 +754,21 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
               ],
             ),
           ),
+          if (!node.isDirectory)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                FileOperationService.instance.openWith(node);
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.arrow_up_right_square, size: 18),
+                  SizedBox(width: 8),
+                  Text('Open with...'),
+                ],
+              ),
+            ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(ctx);
@@ -1492,6 +1507,14 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                         onTap: () => FileOperationService.instance.shareItems(_selectedNodes),
                         isDark: isDark,
                       ),
+                      if (_selectedNodes.length == 1 && !_selectedNodes.first.isDirectory)
+                        _toolbarButton(
+                          icon: CupertinoIcons.arrow_up_right_square,
+                          label: 'Open with',
+                          enabled: true,
+                          onTap: () => FileOperationService.instance.openWith(_selectedNodes.first),
+                          isDark: isDark,
+                        ),
                       _toolbarButton(
                         icon: CupertinoIcons.doc_on_doc,
                         label: 'Copy',

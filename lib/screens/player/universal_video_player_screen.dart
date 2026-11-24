@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path/path.dart' as p;
 import '../../models/vfs_node.dart';
+import '../../services/file_operation_service.dart';
 import '../../services/log_service.dart';
 import '../../services/media/media_player_service.dart';
 import '../../services/media/playback_history_service.dart';
@@ -1737,6 +1738,11 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               onSelected: (val) {
                                 switch (val) {
+                                  case 'open_with':
+                                    if (_currentIndex < _playlist.length) {
+                                      FileOperationService.instance.openWith(_playlist[_currentIndex]);
+                                    }
+                                    break;
                                   case 'pip':
                                     _enterPipMode();
                                     break;
@@ -1755,6 +1761,16 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                                 }
                               },
                               itemBuilder: (ctx) => [
+                                const PopupMenuItem(
+                                  value: 'open_with',
+                                  child: Row(
+                                    children: [
+                                      Icon(CupertinoIcons.arrow_up_right_square, color: Colors.white, size: 20),
+                                      SizedBox(width: 12),
+                                      Text('Open in External App', style: TextStyle(color: Colors.white)),
+                                    ],
+                                  ),
+                                ),
                                 const PopupMenuItem(
                                   value: 'pip',
                                   child: Row(

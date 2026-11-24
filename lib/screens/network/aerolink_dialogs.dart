@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import '../../models/aerolink_models.dart';
 import '../../services/network/aerolink_service.dart';
@@ -270,6 +271,8 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shares = _service.sharedFolders;
     final pin = _service.pairingPin;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final sectionBg = isDark ? AppleColors.pureBlack : const Color(0xFFF2F2F7);
 
     return Center(
       child: ConstrainedBox(
@@ -277,17 +280,21 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+            color: sectionBg,
             borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+              width: 0.8,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 24,
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
+                blurRadius: 28,
                 offset: const Offset(0, 10),
               ),
             ],
           ),
-          padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
           child: Material(
             color: Colors.transparent,
             child: SingleChildScrollView(
@@ -306,7 +313,7 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // Header with Done button
                   Row(
@@ -315,108 +322,124 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                       Row(
                         children: [
                           Container(
-                            width: 38,
-                            height: 38,
+                            width: 34,
+                            height: 34,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [AppleColors.systemBlue, AppleColors.systemIndigo],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(10),
+                              color: AppleColors.systemBlue,
+                              borderRadius: BorderRadius.circular(9),
                             ),
                             alignment: Alignment.center,
-                            child: const Icon(CupertinoIcons.folder_fill_badge_person_crop, color: Colors.white, size: 20),
+                            child: const Icon(CupertinoIcons.folder_fill_badge_person_crop, color: Colors.white, size: 18),
                           ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'AeroLink Mesh Settings',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : AppleColors.textPrimaryLight,
-                                ),
-                              ),
-                              Text(
-                                'Private Wi-Fi Streaming & Sharing',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: 10),
+                          Text(
+                            'AeroLink Settings',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.3,
+                              color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                            ),
                           ),
                         ],
                       ),
                       CupertinoButton(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                        borderRadius: BorderRadius.circular(14),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        borderRadius: BorderRadius.circular(16),
                         color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                        onPressed: () => Navigator.pop(context),
                         child: Text(
                           'Done',
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                             fontSize: 14,
                             color: isDark ? Colors.white : AppleColors.textPrimaryLight,
                           ),
                         ),
-                        onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-                  // Same Network Wi-Fi Status Pill
+                  // Section 1: Device Information
+                  Text(
+                    'DEVICE INFORMATION',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.2,
+                      color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: AppleColors.systemBlue.withValues(alpha: isDark ? 0.12 : 0.08),
+                      color: cardBg,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppleColors.systemBlue.withValues(alpha: 0.25),
-                        width: 0.8,
+                        color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                        width: 0.6,
                       ),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        const Icon(CupertinoIcons.wifi, color: AppleColors.systemBlue, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Same Network Required',
+                        InkWell(
+                          onTap: _promptEditDeviceName,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            child: Row(
+                              children: [
+                                const Icon(CupertinoIcons.device_phone_portrait, color: AppleColors.systemBlue, size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Device Name',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
                                       color: isDark ? Colors.white : AppleColors.textPrimaryLight,
                                     ),
                                   ),
-                                  if (_localIp.isNotEmpty && _localIp != '127.0.0.1') ...[
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '($_localIp)',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppleColors.systemBlue,
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                                ),
+                                Text(
+                                  _service.deviceName,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(CupertinoIcons.pencil, size: 14, color: AppleColors.systemBlue),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Divider(
+                          height: 0.5,
+                          thickness: 0.5,
+                          indent: 46,
+                          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(
+                            children: [
+                              const Icon(CupertinoIcons.wifi, color: AppleColors.systemBlue, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Wi-Fi IP',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 2),
                               Text(
-                                'Other devices must be connected to this same Wi-Fi network to discover and stream.',
+                                _localIp.isNotEmpty ? _localIp : 'Connecting...',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
                                   color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
                                 ),
                               ),
@@ -426,178 +449,137 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // 1. Device Name Card
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              CupertinoIcons.device_phone_portrait,
-                              color: AppleColors.systemBlue,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'DEVICE NAME',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                    color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _service.deviceName,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark ? Colors.white : AppleColors.textPrimaryLight,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        CupertinoButton(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          minimumSize: Size.zero,
-                          color: AppleColors.systemBlue.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          onPressed: _promptEditDeviceName,
-                          child: const Row(
-                            children: [
-                              Icon(CupertinoIcons.pencil, size: 12, color: AppleColors.systemBlue),
-                              SizedBox(width: 4),
-                              Text('Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppleColors.systemBlue)),
-                            ],
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Text(
+                      'Devices must be on the same local Wi-Fi to connect.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-                  // 2. 6-Digit Pairing PIN Card (New Apple-Style Digit Boxes)
+                  // Section 2: 6-Digit Pairing Code (Clean AirDrop Style)
+                  Text(
+                    'PAIRING CODE',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.2,
+                      color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
-                      borderRadius: BorderRadius.circular(14),
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                        width: 0.6,
+                      ),
                     ),
                     child: Column(
                       children: [
+                        Text(
+                          pin.length == 6 ? '${pin.substring(0, 3)}  ${pin.substring(3)}' : pin,
+                          style: TextStyle(
+                            fontSize: 34,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 6,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '6-DIGIT PAIRING PIN',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                    color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Enter this PIN on other devices to pair',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
-                                  ),
-                                ),
-                              ],
-                            ),
                             CupertinoButton(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                               minimumSize: Size.zero,
-                              color: AppleColors.systemBlue.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(14),
+                              color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
                               onPressed: () {
                                 _service.regeneratePin();
                                 setState(() {});
                               },
-                              child: const Row(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(CupertinoIcons.arrow_2_circlepath, size: 12, color: AppleColors.systemBlue),
-                                  SizedBox(width: 4),
-                                  Text('Regenerate', style: TextStyle(fontSize: 12, color: AppleColors.systemBlue, fontWeight: FontWeight.w600)),
+                                  const Icon(CupertinoIcons.arrow_2_circlepath, size: 14, color: AppleColors.systemBlue),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Regenerate',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            CupertinoButton(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              minimumSize: Size.zero,
+                              borderRadius: BorderRadius.circular(14),
+                              color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: pin));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('PIN copied to clipboard'), duration: Duration(seconds: 2)),
+                                );
+                              },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(CupertinoIcons.doc_on_doc, size: 14, color: AppleColors.systemBlue),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Copy',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 14),
-
-                        // Beautiful 6 PIN Boxes
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            for (int i = 0; i < 6; i++)
-                              Container(
-                                width: 44,
-                                height: 50,
-                                margin: const EdgeInsets.symmetric(horizontal: 4),
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: AppleColors.systemBlue.withValues(alpha: 0.35),
-                                    width: 1.2,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.08),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  i < pin.length ? pin[i] : '•',
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    fontFamily: 'monospace',
-                                    color: AppleColors.systemGreen,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Text(
+                      'Enter this code on another AeroFiles device to pair.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
 
-                  // 3. Shared Folders & Files Section
+                  // Section 3: Shared Items
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'SHARED ITEMS (${shares.length})',
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.2,
                           color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
                         ),
                       ),
@@ -615,59 +597,59 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-
+                  const SizedBox(height: 6),
                   if (shares.isEmpty)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
+                        color: cardBg,
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                          width: 0.6,
+                        ),
                       ),
                       child: Center(
                         child: Text(
-                          'No items shared yet. Tap "+ Add Item" to select any folder or file to share.',
+                          'No items shared yet.\nTap "+ Add Item" to share folders or files.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                          ),
                         ),
                       ),
                     )
                   else
-                    for (final s in shares)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
-                          borderRadius: BorderRadius.circular(12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                          width: 0.6,
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: (s.isFile ? AppleColors.systemGreen : AppleColors.systemBlue).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              alignment: Alignment.center,
-                              child: Icon(
-                                s.isFile ? CupertinoIcons.doc_fill : CupertinoIcons.folder_fill,
-                                color: s.isFile ? AppleColors.systemGreen : AppleColors.systemBlue,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                      ),
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < shares.length; i++) ...[
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              child: Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          s.name,
+                                  Icon(
+                                    shares[i].isFile ? CupertinoIcons.doc_fill : CupertinoIcons.folder_fill,
+                                    color: shares[i].isFile ? AppleColors.systemGreen : AppleColors.systemBlue,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          shares[i].name,
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                             fontSize: 14,
@@ -676,63 +658,42 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: (s.isFile ? AppleColors.systemGreen : AppleColors.systemBlue).withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          s.isFile ? 'FILE' : 'FOLDER',
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          shares[i].localPath,
                                           style: TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: s.isFile ? AppleColors.systemGreen : AppleColors.systemBlue,
+                                            fontSize: 11,
+                                            color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    s.localPath,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                                      ],
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  CupertinoButton(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    child: const Icon(CupertinoIcons.trash, color: AppleColors.systemRed, size: 18),
+                                    onPressed: () {
+                                      _service.removeShare(shares[i].id);
+                                      setState(() {});
+                                    },
                                   ),
                                 ],
                               ),
                             ),
-                            CupertinoButton(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              child: const Icon(CupertinoIcons.trash, color: AppleColors.systemRed, size: 18),
-                              onPressed: () {
-                                _service.removeShare(s.id);
-                                setState(() {});
-                              },
-                            ),
+                            if (i < shares.length - 1)
+                              Divider(
+                                height: 0.5,
+                                thickness: 0.5,
+                                indent: 48,
+                                color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                              ),
                           ],
-                        ),
-                      ),
-                  const SizedBox(height: 12),
-
-                  // Privacy Note
-                  Center(
-                    child: Text(
-                      '🔒 Only devices on your Wi-Fi entering this 6-digit PIN can stream or browse.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                        ],
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

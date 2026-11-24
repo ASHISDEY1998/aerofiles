@@ -25,6 +25,8 @@ import android.os.Environment
 import android.os.PowerManager
 import android.os.StatFs
 import android.util.Size
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -490,6 +492,43 @@ class MainActivity : FlutterFragmentActivity() {
                         }
                     } catch (e: Exception) {
                         result.error("ERROR", e.message ?: "Failed to scan file", null)
+                    }
+                }
+                "openWith" -> {
+                    val path = call.argument<String>("path")
+                    var mimeType = call.argument<String>("mimeType")
+                    if (path.isNullOrEmpty()) {
+                        result.error("INVALID_PATH", "Path is empty", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        val file = File(path)
+                        if (!file.exists()) {
+                            result.error("NOT_FOUND", "File does not exist: $path", null)
+                            return@setMethodCallHandler
+                        }
+                        if (mimeType.isNullOrEmpty() || mimeType == "application/octet-stream") {
+                            val ext = file.extension.lowercase()
+                            mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "*/*"
+                        }
+                        val uri = FileProvider.getUriForFile(
+                            applicationContext,
+                            "${applicationContext.packageName}.fileProvider.com.crazecoder.openfile",
+                            file
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, mimeType)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        val chooser = Intent.createChooser(intent, "Open with").apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        startActivity(chooser)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("ERROR", e.message ?: "Failed to open chooser", null)
                     }
                 }
                 "enterPipMode" -> {
