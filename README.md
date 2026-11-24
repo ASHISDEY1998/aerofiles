@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.1.6_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.0_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 📲 Direct Downloads (v2.1.6 / Build 23)
+## 📲 Direct Downloads (v2.2.0 / Build 24)
 
 Download the official standalone release for your device architecture:
 
@@ -149,6 +149,20 @@ Download the official standalone release for your device architecture:
 * **AeroLink Read-Only Safety Alert:** Intercepts delete, rename, and move operations on remote streaming devices and surfaces an alert: *'Cannot modify remote files. AeroLink storage is read-only.'*
 * **Swipe-to-Dismiss Undo Toasts:** Deletion confirmation and undo banners can now be dismissed immediately by dragging down before the 4-second timeout.
 * **Network Tab Overflow Fixes:** Added solid navigation bar backgrounds with hairline dividers and flexible card containers to prevent UI clipping on narrow screens.
+
+---
+
+### 📲 10. Native System Open With & Apple Design Polish (v2.1.6)
+* **Native 'Open with...' Intent:** Android system resolver integration via `FileProvider` with `Intent.createChooser` allows sending any video or file to external players (VLC, MX Player, Photos, Chrome, Drive).
+* **Apple Inset Cleanups:** Eliminated AI artifacts, glowing drop shadows, and neon digits; replaced AeroLink setup with authentic iOS Inset Grouped cards and unified LAN scan controls.
+
+---
+
+### 🎬 11. Hardware-Accelerated Video Trimming & Ordered Merging (v2.2.0)
+* **Video Trimming with Live Preview:** Select a video in files, library, or player menu to trim. Interactive dual-handle range scrubber, millisecond nudge buttons, and live looping preview.
+* **Ordered Video Merging:** Select 2 or more videos to combine clips in the exact order selected, featuring a reorderable sequence preview and total duration calculation.
+* **Flexible Save Options:** Choose between **'Save as New File'** (keeps originals) or **'Replace Original'** (seamlessly overwrites source and rescans Android MediaStore).
+* **Apple Frosted Render Progress:** OLED dark frosted modal displaying hardware accelerated progress percentage, notification bar alerts, and instant cancel support.
 
 ---
 

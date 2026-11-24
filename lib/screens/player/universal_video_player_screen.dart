@@ -16,6 +16,7 @@ import '../../services/vfs/aerolink_vfs.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
 import '../../theme/apple_theme.dart';
+import 'video_trim_screen.dart';
 
 class UniversalVideoPlayerScreen extends StatefulWidget {
   final String title;
@@ -1743,6 +1744,19 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                                       FileOperationService.instance.openWith(_playlist[_currentIndex]);
                                     }
                                     break;
+                                  case 'trim':
+                                    if (_currentIndex < _playlist.length) {
+                                      _mediaService.pause();
+                                      final currentNode = _playlist[_currentIndex];
+                                      final vfs = widget.vfs ?? LocalVfs();
+                                      Navigator.push(
+                                        context,
+                                        CupertinoPageRoute(
+                                          builder: (_) => VideoTrimScreen(node: currentNode, vfs: vfs),
+                                        ),
+                                      );
+                                    }
+                                    break;
                                   case 'pip':
                                     _enterPipMode();
                                     break;
@@ -1771,6 +1785,17 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                                     ],
                                   ),
                                 ),
+                                if (!isRemote && _currentIndex < _playlist.length)
+                                  const PopupMenuItem(
+                                    value: 'trim',
+                                    child: Row(
+                                      children: [
+                                        Icon(CupertinoIcons.scissors, color: Colors.white, size: 20),
+                                        SizedBox(width: 12),
+                                        Text('Trim Video', style: TextStyle(color: Colors.white)),
+                                      ],
+                                    ),
+                                  ),
                                 const PopupMenuItem(
                                   value: 'pip',
                                   child: Row(

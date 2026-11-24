@@ -19,6 +19,8 @@ import '../../widgets/file_tile.dart';
 import '../common/destination_picker_screen.dart';
 import '../player/image_viewer_screen.dart';
 import '../player/universal_video_player_screen.dart';
+import '../player/video_merge_dialog.dart';
+import '../player/video_trim_screen.dart';
 import '../security/vault_pin_dialog.dart';
 
 enum CategorySort { newToOld, oldToNew, nameAsc, nameDesc, sizeDesc, sizeAsc }
@@ -342,8 +344,45 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     );
   }
 
-  List<VfsNode> get _selectedNodes =>
-      _currentItems.where((e) => _selectedPaths.contains(e.path)).toList();
+  List<VfsNode> get _selectedNodes {
+    final Map<String, VfsNode> itemMap = {for (final e in _currentItems) e.path: e};
+    final List<VfsNode> ordered = [];
+    for (final p in _selectedPaths) {
+      final node = itemMap[p];
+      if (node != null) ordered.add(node);
+    }
+    return ordered;
+  }
+
+  Future<void> _openTrimScreen(VfsNode node) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      CupertinoPageRoute(
+        builder: (ctx) => VideoTrimScreen(node: node, vfs: widget.localVfs),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() {
+        _currentItems.removeWhere((item) => !File(item.path).existsSync() && !Directory(item.path).existsSync());
+        _selectedPaths.clear();
+        _isSelectionMode = false;
+      });
+    }
+  }
+
+  Future<void> _openMergeDialog(List<VfsNode> nodes) async {
+    final changed = await VideoMergeDialog.show(
+      context,
+      orderedVideos: nodes,
+    );
+    if (changed && mounted) {
+      setState(() {
+        _currentItems.removeWhere((item) => !File(item.path).existsSync() && !Directory(item.path).existsSync());
+        _selectedPaths.clear();
+        _isSelectionMode = false;
+      });
+    }
+  }
 
   Future<void> _handleBatchDelete() async {
     final selected = _selectedNodes;
@@ -766,6 +805,21 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                   Icon(CupertinoIcons.arrow_up_right_square, size: 18),
                   SizedBox(width: 8),
                   Text('Open with...'),
+                ],
+              ),
+            ),
+          if (node.isVideo)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _openTrimScreen(node);
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.scissors, size: 18, color: AppleColors.systemBlue),
+                  SizedBox(width: 8),
+                  Text('Trim Video', style: TextStyle(color: AppleColors.systemBlue)),
                 ],
               ),
             ),
@@ -1513,6 +1567,22 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                           label: 'Open with',
                           enabled: true,
                           onTap: () => FileOperationService.instance.openWith(_selectedNodes.first),
+                          isDark: isDark,
+                        ),
+                      if (_selectedNodes.length == 1 && _selectedNodes.first.isVideo)
+                        _toolbarButton(
+                          icon: CupertinoIcons.scissors,
+                          label: 'Trim',
+                          enabled: true,
+                          onTap: () => _openTrimScreen(_selectedNodes.first),
+                          isDark: isDark,
+                        ),
+                      if (_selectedNodes.length >= 2 && _selectedNodes.every((n) => n.isVideo))
+                        _toolbarButton(
+                          icon: CupertinoIcons.layers_alt,
+                          label: 'Merge',
+                          enabled: true,
+                          onTap: () => _openMergeDialog(_selectedNodes),
                           isDark: isDark,
                         ),
                       _toolbarButton(

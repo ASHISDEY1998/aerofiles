@@ -47,8 +47,10 @@ class MainActivity : FlutterFragmentActivity() {
     private var focusChangeListener: AudioManager.OnAudioFocusChangeListener? = null
     private var becomingNoisyReceiver: BroadcastReceiver? = null
     private var methodChannel: MethodChannel? = null
+    private var videoMethodChannel: MethodChannel? = null
     private var multicastLock: WifiManager.MulticastLock? = null
     private var mediaSession: MediaSession? = null
+    private var videoEditorHelper: VideoEditorHelper? = null
 
     private fun setupMediaSession() {
         if (mediaSession == null) {
@@ -558,6 +560,113 @@ class MainActivity : FlutterFragmentActivity() {
                     stopTransferNotification()
                     result.success(true)
                 }
+                "trimVideo" -> {
+                    val inputPath = call.argument<String>("inputPath")
+                    val outputPath = call.argument<String>("outputPath")
+                    val startMs = (call.argument<Number>("startMs"))?.toLong() ?: 0L
+                    val endMs = (call.argument<Number>("endMs"))?.toLong() ?: 0L
+
+                    if (inputPath.isNullOrEmpty() || outputPath.isNullOrEmpty() || endMs <= startMs) {
+                        result.error("INVALID_ARGS", "Invalid trim arguments", null)
+                        return@setMethodCallHandler
+                    }
+
+                    if (videoEditorHelper == null) {
+                        videoEditorHelper = VideoEditorHelper(applicationContext)
+                    }
+
+                    updateTransferNotification("Trimming Video", "Rendering trimmed clip...", 0, 100)
+
+                    videoEditorHelper?.trimVideo(
+                        inputPath,
+                        outputPath,
+                        startMs,
+                        endMs,
+                        onProgress = { progress ->
+                            runOnUiThread {
+                                methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to progress
+                                ))
+                                updateTransferNotification("Trimming Video", "Rendering: $progress%", progress, 100)
+                            }
+                        },
+                        onComplete = { outPath ->
+                            runOnUiThread {
+                                stopTransferNotification()
+                                methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to 100
+                                ))
+                                result.success(outPath)
+                            }
+                        },
+                        onError = { error ->
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.error("TRIM_ERROR", error, null)
+                            }
+                        }
+                    )
+                }
+                "mergeVideos" -> {
+                    val inputPaths = call.argument<List<String>>("inputPaths")
+                    val outputPath = call.argument<String>("outputPath")
+
+                    if (inputPaths.isNullOrEmpty() || outputPath.isNullOrEmpty()) {
+                        result.error("INVALID_ARGS", "Invalid merge arguments", null)
+                        return@setMethodCallHandler
+                    }
+
+                    if (videoEditorHelper == null) {
+                        videoEditorHelper = VideoEditorHelper(applicationContext)
+                    }
+
+                    updateTransferNotification("Merging Videos", "Combining ${inputPaths.size} clips...", 0, 100)
+
+                    videoEditorHelper?.mergeVideos(
+                        inputPaths,
+                        outputPath,
+                        onProgress = { progress ->
+                            runOnUiThread {
+                                methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to progress
+                                ))
+                                updateTransferNotification("Merging Videos", "Rendering: $progress%", progress, 100)
+                            }
+                        },
+                        onComplete = { outPath ->
+                            runOnUiThread {
+                                stopTransferNotification()
+                                methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to 100
+                                ))
+                                result.success(outPath)
+                            }
+                        },
+                        onError = { error ->
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.error("MERGE_ERROR", error, null)
+                            }
+                        }
+                    )
+                }
+                "cancelVideoProcess" -> {
+                    videoEditorHelper?.cancel()
+                    stopTransferNotification()
+                    result.success(true)
+                }
+                "getVideoMetadata" -> {
+                    val path = call.argument<String>("path")
+                    if (path.isNullOrEmpty()) {
+                        result.error("INVALID_PATH", "Path is empty", null)
+                        return@setMethodCallHandler
+                    }
+                    if (videoEditorHelper == null) {
+                        videoEditorHelper = VideoEditorHelper(applicationContext)
+                    }
+                    val meta = videoEditorHelper?.getVideoMetadata(path) ?: emptyMap<String, Any>()
+                    result.success(meta)
+                }
                 "getVideoThumbnail" -> {
                     val path = call.argument<String>("path")
                     if (path.isNullOrEmpty()) {
@@ -759,11 +868,128 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
+
+        videoMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.aerofiles.app/video_editor")
+        videoMethodChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "trimVideo" -> {
+                    val inputPath = call.argument<String>("inputPath")
+                    val outputPath = call.argument<String>("outputPath")
+                    val startMs = (call.argument<Number>("startMs"))?.toLong() ?: 0L
+                    val endMs = (call.argument<Number>("endMs"))?.toLong() ?: 0L
+
+                    if (inputPath.isNullOrEmpty() || outputPath.isNullOrEmpty() || endMs <= startMs) {
+                        result.error("INVALID_ARGS", "Invalid trim arguments", null)
+                        return@setMethodCallHandler
+                    }
+
+                    if (videoEditorHelper == null) {
+                        videoEditorHelper = VideoEditorHelper(applicationContext)
+                    }
+
+                    updateTransferNotification("Trimming Video", "Rendering trimmed clip...", 0, 100)
+
+                    videoEditorHelper?.trimVideo(
+                        inputPath,
+                        outputPath,
+                        startMs,
+                        endMs,
+                        onProgress = { progress ->
+                            runOnUiThread {
+                                videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to progress
+                                ))
+                                updateTransferNotification("Trimming Video", "Rendering: $progress%", progress, 100)
+                            }
+                        },
+                        onComplete = { outPath ->
+                            runOnUiThread {
+                                stopTransferNotification()
+                                videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to 100
+                                ))
+                                result.success(outPath)
+                            }
+                        },
+                        onError = { error ->
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.error("TRIM_ERROR", error, null)
+                            }
+                        }
+                    )
+                }
+                "mergeVideos" -> {
+                    val inputPaths = call.argument<List<String>>("inputPaths")
+                    val outputPath = call.argument<String>("outputPath")
+
+                    if (inputPaths.isNullOrEmpty() || outputPath.isNullOrEmpty()) {
+                        result.error("INVALID_ARGS", "Invalid merge arguments", null)
+                        return@setMethodCallHandler
+                    }
+
+                    if (videoEditorHelper == null) {
+                        videoEditorHelper = VideoEditorHelper(applicationContext)
+                    }
+
+                    updateTransferNotification("Merging Videos", "Combining ${inputPaths.size} clips...", 0, 100)
+
+                    videoEditorHelper?.mergeVideos(
+                        inputPaths,
+                        outputPath,
+                        onProgress = { progress ->
+                            runOnUiThread {
+                                videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to progress
+                                ))
+                                updateTransferNotification("Merging Videos", "Rendering: $progress%", progress, 100)
+                            }
+                        },
+                        onComplete = { outPath ->
+                            runOnUiThread {
+                                stopTransferNotification()
+                                videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to 100
+                                ))
+                                result.success(outPath)
+                            }
+                        },
+                        onError = { error ->
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.error("MERGE_ERROR", error, null)
+                            }
+                        }
+                    )
+                }
+                "cancelVideoProcess" -> {
+                    videoEditorHelper?.cancel()
+                    stopTransferNotification()
+                    result.success(true)
+                }
+                "getVideoMetadata" -> {
+                    val path = call.argument<String>("path")
+                    if (path.isNullOrEmpty()) {
+                        result.error("INVALID_PATH", "Path is empty", null)
+                        return@setMethodCallHandler
+                    }
+                    if (videoEditorHelper == null) {
+                        videoEditorHelper = VideoEditorHelper(applicationContext)
+                    }
+                    val meta = videoEditorHelper?.getVideoMetadata(path) ?: emptyMap<String, Any>()
+                    result.success(meta)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
         abandonAudioFocus()
         releaseMediaSession()
+        videoEditorHelper?.cancel()
         stopTransferNotification()
         super.onDestroy()
     }
