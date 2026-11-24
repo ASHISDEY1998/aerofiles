@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.13_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.14_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -26,7 +26,7 @@
 
 ---
 
-## 📲 Direct Downloads (v1.0.13 / Build 14)
+## 📲 Direct Downloads (v1.0.14 / Build 15)
 
 Download the official standalone release for your device architecture:
 
@@ -103,8 +103,11 @@ Download the official standalone release for your device architecture:
 
 ---
 
-### 🛡️ 5. Background File Operations & Floating Progress Bubble
-* **Floating Live Transfer Progress Bubble:** An animated glassmorphic bubble appears at the bottom right whenever file transfers begin. Tapping it opens a dedicated screen showing per-item progress bars, transfer speeds (MB/s), total megabytes, and cancel controls.
+### 🛡️ 5. Background File Operations & Resilient Transfer Engine
+* **Floating Live Transfer Progress Bubble:** An animated glassmorphic bubble appears at the bottom right whenever file transfers begin. Tapping it opens a dedicated screen showing per-item progress bars, transfer speeds (MB/s), total megabytes, individual retry controls, and cancel buttons.
+* **Auto-Resumption on Network Recovery:** If a Wi-Fi drop or connection timeout interrupts transfers to a NAS or network drive, tasks are gracefully paused rather than discarded. An automatic reconnection watcher monitors network availability and immediately resumes transfers once the connection recovers.
+* **Interactive Conflict Resolution Dialog:** When moving or copying files into a destination where matching files already exist, AeroFiles prompts you with options to **Replace / Replace All**, **Skip / Skip Existing**, or **Cancel**.
+* **Persistent Error & Pause Indicators:** Interrupted or failed transfers keep the progress bubble and notification visible with orange/red badges and detailed diagnostic reasons so issues are never missed.
 * **Foreground Service Ongoing Notification:** File operations (copying, moving, downloading multi-gigabyte folders) are bound to an ongoing notification (`FOREGROUND_SERVICE_DATA_SYNC`) showing live progress bars, speed, and an instant Cancel button so Android never kills the task.
 * **4-Second "Undo" Action on Delete:** Accidental deletions trigger a floating 4-second banner allowing one-tap recovery without visiting the Recycle Bin.
 * **Duplicate File Detector:** Built into the Storage Analyzer, identifying duplicate files sharing identical byte sizes and MD5/CRC32 checksums to reclaim wasted storage.

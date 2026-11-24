@@ -9,6 +9,12 @@ import '../theme/apple_theme.dart';
 import 'transfer_manager_service.dart';
 import 'vfs/vfs_provider.dart';
 
+enum ConflictResolution {
+  replace,
+  skip,
+  cancel,
+}
+
 class FileOperationService {
   static final FileOperationService instance = FileOperationService._();
   FileOperationService._();
@@ -43,6 +49,81 @@ class FileOperationService {
         await _storageChannel.invokeMethod('stopTransferNotification');
       }
     } catch (_) {}
+  }
+
+  /// Checks whether any items to transfer already exist in [targetDirPath] on [targetVfs].
+  /// If collisions exist, prompts the user with an alert to Cancel, Skip, or Replace.
+  /// Returns the resolved list of items to transfer, or `null` if user cancelled.
+  Future<List<VfsNode>?> resolveConflicts({
+    required BuildContext context,
+    required List<VfsNode> items,
+    required String targetDirPath,
+    required VfsProvider targetVfs,
+  }) async {
+    if (items.isEmpty) return items;
+
+    List<VfsNode> existingFiles = [];
+    try {
+      existingFiles = await targetVfs.listDirectory(targetDirPath);
+    } catch (_) {
+      // If destination listing is unavailable or directory is empty, proceed
+      return items;
+    }
+
+    final existingNames = existingFiles.map((e) => e.name.toLowerCase()).toSet();
+    final conflictingItems = items.where((i) => existingNames.contains(i.name.toLowerCase())).toList();
+
+    if (conflictingItems.isEmpty) {
+      return items;
+    }
+
+    if (!context.mounted) return items;
+
+    final isSingle = conflictingItems.length == 1;
+    final title = isSingle ? 'File Already Exists' : 'Files Already Exist';
+    final content = isSingle
+        ? '"${conflictingItems.first.name}" already exists in the destination folder. Do you want to replace it or skip?'
+        : '"${conflictingItems.first.name}" and ${conflictingItems.length - 1} other item${conflictingItems.length - 1 == 1 ? '' : 's'} already exist in the destination folder. Do you want to replace existing files or skip them?';
+
+    final choice = await showCupertinoDialog<ConflictResolution>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(title),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Text(content),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(ctx, ConflictResolution.cancel),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx, ConflictResolution.skip),
+            child: Text(isSingle ? 'Skip' : 'Skip Existing'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx, ConflictResolution.replace),
+            child: Text(isSingle ? 'Replace' : 'Replace All'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || choice == ConflictResolution.cancel) {
+      return null;
+    }
+
+    if (choice == ConflictResolution.skip) {
+      final conflictingSet = conflictingItems.map((e) => e.name.toLowerCase()).toSet();
+      return items.where((i) => !conflictingSet.contains(i.name.toLowerCase())).toList();
+    }
+
+    // Replace All
+    return items;
   }
 
   Future<bool> copyItems({

@@ -43,6 +43,8 @@ void main() async {
 }
 
 class AeroFilesApp extends StatelessWidget {
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   const AeroFilesApp({super.key});
 
   @override
@@ -66,6 +68,7 @@ class AeroFilesApp extends StatelessWidget {
         );
 
         return MaterialApp(
+          navigatorKey: AeroFilesApp.navigatorKey,
           title: 'AeroFiles',
           debugShowCheckedModeBanner: false,
           themeMode: mode,

@@ -97,12 +97,29 @@ class TransferProgressScreen extends StatelessWidget {
               final hasActive = taskList.any(
                 (t) => t.status == TransferStatus.pending || t.status == TransferStatus.transferring,
               );
+              final hasFailedOrPaused = taskList.any(
+                (t) => t.isFailedOrPaused,
+              );
+
               if (!hasActive) {
-                return TextButton(
-                  onPressed: () {
-                    mgr.clearFinished();
-                  },
-                  child: const Text('Clear', style: TextStyle(color: AppleColors.systemBlue)),
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasFailedOrPaused)
+                      TextButton(
+                        onPressed: () => mgr.resumeTransfers(),
+                        child: const Text(
+                          'Retry All',
+                          style: TextStyle(color: AppleColors.systemBlue, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    TextButton(
+                      onPressed: () {
+                        mgr.clearFinished();
+                      },
+                      child: const Text('Clear', style: TextStyle(color: AppleColors.systemBlue)),
+                    ),
+                  ],
                 );
               }
               return TextButton(
@@ -160,6 +177,8 @@ class TransferProgressScreen extends StatelessWidget {
                     mgr.overallSpeed,
                     mgr.overallSummary,
                     mgr.isTransferring,
+                    mgr.hasNetworkError,
+                    mgr.tasks,
                   ]),
                   builder: (context, _) {
                     final progress = mgr.overallProgress.value;
@@ -167,6 +186,20 @@ class TransferProgressScreen extends StatelessWidget {
                     final speed = mgr.overallSpeed.value;
                     final summary = mgr.overallSummary.value;
                     final active = mgr.isTransferring.value;
+                    final hasNetErr = mgr.hasNetworkError.value;
+                    final pausedCount = mgr.tasks.value.where((t) => t.status == TransferStatus.paused).length;
+                    final failedCount = mgr.tasks.value.where((t) => t.status == TransferStatus.failed).length;
+
+                    String headerTitle;
+                    if (hasNetErr || pausedCount > 0) {
+                      headerTitle = 'Transfers Paused';
+                    } else if (failedCount > 0 && !active) {
+                      headerTitle = 'Transfers Interrupted';
+                    } else if (active) {
+                      headerTitle = 'Transferring Files';
+                    } else {
+                      headerTitle = 'All Transfers Finished';
+                    }
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,11 +208,15 @@ class TransferProgressScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              active ? 'Transferring Files' : 'All Transfers Finished',
+                              headerTitle,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? AppleColors.textPrimary : AppleColors.textPrimaryLight,
+                                color: (hasNetErr || pausedCount > 0)
+                                    ? AppleColors.systemOrange
+                                    : (failedCount > 0 && !active)
+                                        ? AppleColors.systemRed
+                                        : (isDark ? AppleColors.textPrimary : AppleColors.textPrimaryLight),
                               ),
                             ),
                             Text(
@@ -200,9 +237,13 @@ class TransferProgressScreen extends StatelessWidget {
                             minHeight: 8,
                             backgroundColor: isDark ? Colors.white12 : Colors.black12,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              active
-                                  ? (isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight)
-                                  : AppleColors.systemGreen,
+                              (hasNetErr || pausedCount > 0)
+                                  ? AppleColors.systemOrange
+                                  : (failedCount > 0 && !active)
+                                      ? AppleColors.systemRed
+                                      : (active
+                                          ? (isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight)
+                                          : AppleColors.systemGreen),
                             ),
                           ),
                         ),
@@ -238,6 +279,99 @@ class TransferProgressScreen extends StatelessWidget {
                               ),
                           ],
                         ),
+                        if (hasNetErr || pausedCount > 0) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppleColors.systemOrange.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppleColors.systemOrange.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(CupertinoIcons.wifi_exclamationmark, color: AppleColors.systemOrange, size: 20),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Network interrupted. Auto-reconnecting...',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppleColors.systemOrange,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: Size.zero,
+                                  onPressed: () => mgr.resumeTransfers(),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(CupertinoIcons.arrow_clockwise, size: 14, color: AppleColors.systemOrange),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Resume',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppleColors.systemOrange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else if (failedCount > 0) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppleColors.systemRed.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppleColors.systemRed.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: AppleColors.systemRed, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '$failedCount item${failedCount == 1 ? '' : 's'} failed.',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppleColors.systemRed,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: Size.zero,
+                                  onPressed: () => mgr.resumeTransfers(),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(CupertinoIcons.arrow_clockwise, size: 14, color: AppleColors.systemRed),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Retry All',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppleColors.systemRed,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     );
                   },
@@ -298,6 +432,7 @@ class TransferProgressScreen extends StatelessWidget {
     final icon = _getFileIcon(task.name, task.isDirectory);
     final iconColor = _getIconColor(task.name, task.isDirectory, isDark);
 
+    final mgr = TransferManagerService.instance;
     Widget trailingWidget;
     switch (task.status) {
       case TransferStatus.completed:
@@ -314,11 +449,26 @@ class TransferProgressScreen extends StatelessWidget {
           child: CupertinoActivityIndicator(radius: 9),
         );
         break;
+      case TransferStatus.paused:
+        trailingWidget = IconButton(
+          icon: const Icon(
+            CupertinoIcons.arrow_clockwise_circle_fill,
+            color: AppleColors.systemOrange,
+            size: 24,
+          ),
+          onPressed: () => mgr.retryTask(task.id),
+          tooltip: 'Resume',
+        );
+        break;
       case TransferStatus.failed:
-        trailingWidget = const Icon(
-          CupertinoIcons.exclamationmark_triangle_fill,
-          color: AppleColors.systemRed,
-          size: 24,
+        trailingWidget = IconButton(
+          icon: const Icon(
+            CupertinoIcons.arrow_clockwise_circle_fill,
+            color: AppleColors.systemRed,
+            size: 24,
+          ),
+          onPressed: () => mgr.retryTask(task.id),
+          tooltip: 'Retry',
         );
         break;
       case TransferStatus.canceled:
@@ -348,6 +498,9 @@ class TransferProgressScreen extends StatelessWidget {
         break;
       case TransferStatus.completed:
         subtitleText = '${task.formattedTotalSize} • ${task.isMove ? "Moved" : "Copied"}';
+        break;
+      case TransferStatus.paused:
+        subtitleText = task.errorMessage ?? 'Paused (network offline)';
         break;
       case TransferStatus.failed:
         subtitleText = task.errorMessage ?? 'Transfer failed';
@@ -399,10 +552,12 @@ class TransferProgressScreen extends StatelessWidget {
                     fontSize: 11,
                     color: task.status == TransferStatus.failed
                         ? AppleColors.systemRed
-                        : (isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight),
+                        : (task.status == TransferStatus.paused
+                            ? AppleColors.systemOrange
+                            : (isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight)),
                   ),
                 ),
-                if (task.status == TransferStatus.transferring) ...[
+                if (task.status == TransferStatus.transferring || task.status == TransferStatus.paused) ...[
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(3),
@@ -411,7 +566,9 @@ class TransferProgressScreen extends StatelessWidget {
                       minHeight: 4,
                       backgroundColor: isDark ? Colors.white12 : Colors.black12,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                        task.status == TransferStatus.paused
+                            ? AppleColors.systemOrange
+                            : (isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight),
                       ),
                     ),
                   ),

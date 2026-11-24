@@ -647,7 +647,6 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
   Future<void> _handleBatchTransfer({required bool isMove}) async {
     final selected = _selectedNodes;
     if (selected.isEmpty) return;
-    final selectedPaths = Set<String>.from(_selectedPaths);
 
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -665,9 +664,33 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     final targetPath = (result['targetPath'] ?? result['path']) as String;
     final targetVfs = (result['targetVfs'] ?? result['vfs']) as VfsProvider;
 
+    final resolvedItems = await FileOperationService.instance.resolveConflicts(
+      context: context,
+      items: selected,
+      targetDirPath: targetPath,
+      targetVfs: targetVfs,
+    );
+
+    if (resolvedItems == null || !mounted) {
+      return; // Canceled by user
+    }
+
+    if (resolvedItems.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Existing files skipped. Nothing to transfer.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    final resolvedPaths = resolvedItems.map((e) => e.path).toSet();
     setState(() {
       if (isMove) {
-        _currentItems.removeWhere((e) => selectedPaths.contains(e.path));
+        _currentItems.removeWhere((e) => resolvedPaths.contains(e.path));
       }
       _selectedPaths.clear();
       _isSelectionMode = false;
@@ -676,14 +699,14 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '${isMove ? "Moving" : "Copying"} ${selected.length} items to ${targetVfs.displayName}...',
+          '${isMove ? "Moving" : "Copying"} ${resolvedItems.length} items to ${targetVfs.displayName}...',
         ),
         duration: const Duration(seconds: 3),
       ),
     );
 
     await TransferManagerService.instance.startTransfer(
-      items: selected,
+      items: resolvedItems,
       targetDirPath: targetPath,
       targetVfs: targetVfs,
       sourceVfs: widget.localVfs,

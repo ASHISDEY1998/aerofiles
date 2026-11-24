@@ -163,4 +163,107 @@ void main() {
       expect(sub, 'Videos/clip.mp4');
     });
   });
+
+  group('Transfer Resumption & Retry Tests', () {
+    test('isFailedOrPaused accurately reflects task states', () {
+      final tFailed = TransferTask(
+        id: 'f1',
+        name: 'fail.mp4',
+        sourcePath: '/a/fail.mp4',
+        destPath: 'b/fail.mp4',
+        totalBytes: 100,
+        isMove: false,
+        status: TransferStatus.failed,
+      );
+      final tPaused = TransferTask(
+        id: 'p1',
+        name: 'pause.mp4',
+        sourcePath: '/a/pause.mp4',
+        destPath: 'b/pause.mp4',
+        totalBytes: 100,
+        isMove: false,
+        status: TransferStatus.paused,
+      );
+      final tDone = TransferTask(
+        id: 'd1',
+        name: 'done.mp4',
+        sourcePath: '/a/done.mp4',
+        destPath: 'b/done.mp4',
+        totalBytes: 100,
+        isMove: false,
+        status: TransferStatus.completed,
+      );
+
+      expect(tFailed.isFailedOrPaused, isTrue);
+      expect(tPaused.isFailedOrPaused, isTrue);
+      expect(tDone.isFailedOrPaused, isFalse);
+    });
+
+    test('resumeTransfers resets paused and failed tasks to pending', () {
+      final mgr = TransferManagerService.instance;
+      final tPaused = TransferTask(
+        id: 'p2',
+        name: 'pause.mp4',
+        sourcePath: '/a/pause.mp4',
+        destPath: 'b/pause.mp4',
+        totalBytes: 100,
+        isMove: false,
+        status: TransferStatus.paused,
+        errorMessage: 'Network interrupted',
+      );
+      final tFailed = TransferTask(
+        id: 'f2',
+        name: 'fail.mp4',
+        sourcePath: '/a/fail.mp4',
+        destPath: 'b/fail.mp4',
+        totalBytes: 100,
+        isMove: false,
+        status: TransferStatus.failed,
+        errorMessage: 'Connection lost',
+      );
+
+      mgr.tasks.value = [tPaused, tFailed];
+      mgr.hasNetworkError.value = true;
+
+      mgr.resumeTransfers();
+
+      expect(mgr.hasNetworkError.value, isFalse);
+      expect(tPaused.status, TransferStatus.pending);
+      expect(tPaused.errorMessage, isNull);
+      expect(tFailed.status, TransferStatus.pending);
+      expect(tFailed.errorMessage, isNull);
+    });
+
+    test('retryTask resets specific task to pending', () {
+      final mgr = TransferManagerService.instance;
+      final t1 = TransferTask(
+        id: 'item_1',
+        name: 'file1.mp4',
+        sourcePath: '/a/file1.mp4',
+        destPath: 'b/file1.mp4',
+        totalBytes: 100,
+        isMove: false,
+        status: TransferStatus.failed,
+        errorMessage: 'Timeout',
+      );
+      final t2 = TransferTask(
+        id: 'item_2',
+        name: 'file2.mp4',
+        sourcePath: '/a/file2.mp4',
+        destPath: 'b/file2.mp4',
+        totalBytes: 100,
+        isMove: false,
+        status: TransferStatus.failed,
+        errorMessage: 'Timeout',
+      );
+
+      mgr.tasks.value = [t1, t2];
+
+      mgr.retryTask('item_1');
+
+      expect(t1.status, TransferStatus.pending);
+      expect(t1.errorMessage, isNull);
+      expect(t2.status, TransferStatus.failed); // unchanged
+    });
+  });
 }

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../main.dart';
 import '../screens/transfer/transfer_progress_screen.dart';
 import '../services/transfer_manager_service.dart';
 import '../theme/apple_theme.dart';
@@ -24,7 +25,7 @@ class _TransferProgressBubbleState extends State<TransferProgressBubble>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 320),
     );
     _scaleAnimation = CurvedAnimation(
       parent: _animController,
@@ -37,34 +38,61 @@ class _TransferProgressBubbleState extends State<TransferProgressBubble>
       reverseCurve: Curves.easeIn,
     );
 
-    _mgr.isTransferring.addListener(_onTransferStateChanged);
-    if (_mgr.isTransferring.value) {
+    _mgr.isTransferring.addListener(_onStateChanged);
+    _mgr.tasks.addListener(_onStateChanged);
+    _mgr.hasNetworkError.addListener(_onStateChanged);
+
+    if (_shouldShow) {
       _animController.forward();
     }
   }
 
-  void _onTransferStateChanged() {
-    if (_mgr.isTransferring.value) {
-      _animController.forward();
+  bool get _shouldShow {
+    if (_mgr.isTransferring.value) return true;
+    final taskList = _mgr.tasks.value;
+    return taskList.any((t) => t.isActive || t.isFailedOrPaused);
+  }
+
+  void _onStateChanged() {
+    if (_shouldShow) {
+      if (!_animController.isCompleted && !_animController.isAnimating) {
+        _animController.forward();
+      }
     } else {
-      _animController.reverse();
+      if (!_animController.isDismissed && !_animController.isAnimating) {
+        _animController.reverse();
+      }
     }
   }
 
   @override
   void dispose() {
-    _mgr.isTransferring.removeListener(_onTransferStateChanged);
+    _mgr.isTransferring.removeListener(_onStateChanged);
+    _mgr.tasks.removeListener(_onStateChanged);
+    _mgr.hasNetworkError.removeListener(_onStateChanged);
     _animController.dispose();
     super.dispose();
   }
 
-  void _openTransferScreen(BuildContext context) {
-    Navigator.of(context, rootNavigator: true).push(
-      CupertinoPageRoute(
-        builder: (_) => const TransferProgressScreen(),
-        fullscreenDialog: true,
-      ),
-    );
+  void _openTransferScreen([BuildContext? context]) {
+    final nav = AeroFilesApp.navigatorKey.currentState;
+    if (nav != null) {
+      nav.push(
+        CupertinoPageRoute(
+          builder: (_) => const TransferProgressScreen(),
+          fullscreenDialog: true,
+        ),
+      );
+      return;
+    }
+    if (context != null) {
+      Navigator.of(context, rootNavigator: true).push(
+        CupertinoPageRoute(
+          builder: (_) => const TransferProgressScreen(),
+          fullscreenDialog: true,
+        ),
+      );
+    }
   }
 
   @override
@@ -72,130 +100,155 @@ class _TransferProgressBubbleState extends State<TransferProgressBubble>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_animController, _mgr.isTransferring]),
+      animation: Listenable.merge([
+        _animController,
+        _mgr.isTransferring,
+        _mgr.tasks,
+        _mgr.hasNetworkError,
+      ]),
       builder: (context, child) {
-        if (_animController.isDismissed && !_mgr.isTransferring.value) {
+        if (_animController.isDismissed && !_shouldShow) {
           return const SizedBox.shrink();
         }
 
+        final taskList = _mgr.tasks.value;
+        final hasError = _mgr.hasNetworkError.value || taskList.any((t) => t.isFailedOrPaused);
+        final activeCount = taskList.where((t) => t.isActive).length;
+        final failedCount = taskList.where((t) => t.isFailedOrPaused).length;
+
+        final Color primaryAccent = hasError
+            ? AppleColors.systemOrange
+            : (isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight);
+
         return Positioned(
-          bottom: 84, // Cleanly above HomeShell bottom nav bar
+          bottom: 84, // Cleanly above HomeShell bottom navigation bar
           right: 18,
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: ScaleTransition(
               scale: _scaleAnimation,
-              child: GestureDetector(
-                onTap: () => _openTransferScreen(context),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.2),
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 4),
-                      ),
-                      BoxShadow(
-                        color: (isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight)
-                            .withValues(alpha: 0.25),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: (isDark ? const Color(0xFF1C1C1E) : Colors.white)
-                              .withValues(alpha: 0.88),
-                          border: Border.all(
-                            color: (isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight)
-                                .withValues(alpha: 0.35),
-                            width: 1.5,
+              child: Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  onTap: () => _openTransferScreen(context),
+                  borderRadius: BorderRadius.circular(32),
+                  splashColor: primaryAccent.withValues(alpha: 0.2),
+                  highlightColor: primaryAccent.withValues(alpha: 0.1),
+                  child: SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        // Circular Blurred Glass Button
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.25),
+                                blurRadius: 16,
+                                spreadRadius: 2,
+                                offset: const Offset(0, 4),
+                              ),
+                              BoxShadow(
+                                color: primaryAccent.withValues(alpha: 0.35),
+                                blurRadius: 12,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: (isDark ? const Color(0xFF1C1C1E) : Colors.white)
+                                      .withValues(alpha: 0.90),
+                                  border: Border.all(
+                                    color: primaryAccent.withValues(alpha: 0.45),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    // Circular Progress Ring
+                                    ValueListenableBuilder<double>(
+                                      valueListenable: _mgr.overallProgress,
+                                      builder: (context, progress, _) {
+                                        return SizedBox(
+                                          width: 48,
+                                          height: 48,
+                                          child: CircularProgressIndicator(
+                                            value: hasError ? 1.0 : (progress > 0 ? progress : null),
+                                            strokeWidth: 3.2,
+                                            backgroundColor: isDark
+                                                ? Colors.white.withValues(alpha: 0.1)
+                                                : Colors.black.withValues(alpha: 0.08),
+                                            valueColor: AlwaysStoppedAnimation<Color>(primaryAccent),
+                                          ),
+                                        );
+                                      },
+                                    ),
+
+                                    // Center Icon: Exclamation/Retry when error, or Upload/Sync when active
+                                    Icon(
+                                      hasError
+                                          ? CupertinoIcons.exclamationmark_triangle_fill
+                                          : CupertinoIcons.arrow_up_arrow_down,
+                                      size: hasError ? 22 : 20,
+                                      color: primaryAccent,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // Circular Progress Ring
-                            ValueListenableBuilder<double>(
-                              valueListenable: _mgr.overallProgress,
-                              builder: (context, progress, _) {
-                                return SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: CircularProgressIndicator(
-                                    value: progress > 0 ? progress : null,
-                                    strokeWidth: 3.0,
-                                    backgroundColor: isDark
-                                        ? Colors.white.withValues(alpha: 0.1)
-                                        : Colors.black.withValues(alpha: 0.08),
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      isDark
-                                          ? AppleColors.systemBlue
-                                          : AppleColors.systemBlueLight,
-                                    ),
+
+                        // Unclipped Floating Badge (Positioned outside ClipOval so it is never cut off!)
+                        if (failedCount > 0 || activeCount > 0)
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: hasError ? AppleColors.systemRed : AppleColors.systemBlue,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                                  width: 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
                                   ),
-                                );
-                              },
-                            ),
-
-                            // Center Sync / Upload Icon
-                            Icon(
-                              CupertinoIcons.arrow_up_arrow_down,
-                              size: 20,
-                              color: isDark
-                                  ? AppleColors.systemBlue
-                                  : AppleColors.systemBlueLight,
-                            ),
-
-                            // Small Active Item Count Badge (Top Right)
-                            ValueListenableBuilder<List<TransferTask>>(
-                              valueListenable: _mgr.tasks,
-                              builder: (context, taskList, _) {
-                                final activeCount = taskList
-                                    .where(
-                                      (t) =>
-                                          t.status == TransferStatus.pending ||
-                                          t.status == TransferStatus.transferring,
-                                    )
-                                    .length;
-                                if (activeCount <= 0) return const SizedBox.shrink();
-
-                                return Positioned(
-                                  top: 3,
-                                  right: 3,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: AppleColors.systemBlue,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                                    child: Center(
-                                      child: Text(
-                                        activeCount > 99 ? '99+' : '$activeCount',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
+                                ],
+                              ),
+                              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                              child: Center(
+                                child: Text(
+                                  hasError
+                                      ? '$failedCount!'
+                                      : (activeCount > 99 ? '99+' : '$activeCount'),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                );
-                              },
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -223,4 +276,3 @@ class TransferProgressOverlay extends StatelessWidget {
     );
   }
 }
-

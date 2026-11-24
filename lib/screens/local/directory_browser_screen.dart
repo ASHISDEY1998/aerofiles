@@ -682,13 +682,33 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     final sourceVfs = FileOperationService.instance.clipboardSourceVfs ?? widget.vfs;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final resolvedItems = await FileOperationService.instance.resolveConflicts(
+      context: context,
+      items: clip,
+      targetDirPath: _currentPath,
+      targetVfs: widget.vfs,
+    );
+
+    if (resolvedItems == null || !mounted) return;
+    if (resolvedItems.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Existing items skipped. Nothing pasted.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             const CupertinoActivityIndicator(radius: 8),
             const SizedBox(width: 12),
-            Text('Pasting ${clip.length} item${clip.length == 1 ? '' : 's'}...'),
+            Text('Pasting ${resolvedItems.length} item${resolvedItems.length == 1 ? '' : 's'}...'),
           ],
         ),
         duration: const Duration(seconds: 2),
@@ -700,7 +720,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     bool ok = false;
     if (isCut) {
       ok = await FileOperationService.instance.moveItems(
-        items: clip,
+        items: resolvedItems,
         targetDirPath: _currentPath,
         targetVfs: widget.vfs,
         sourceVfs: sourceVfs,
@@ -710,7 +730,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       }
     } else {
       ok = await FileOperationService.instance.copyItems(
-        items: clip,
+        items: resolvedItems,
         targetDirPath: _currentPath,
         targetVfs: widget.vfs,
         sourceVfs: sourceVfs,
@@ -722,7 +742,7 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(ok
-              ? 'Successfully pasted ${clip.length} item${clip.length == 1 ? '' : 's'}'
+              ? 'Successfully pasted ${resolvedItems.length} item${resolvedItems.length == 1 ? '' : 's'}'
               : 'Failed to paste some items'),
           duration: const Duration(seconds: 3),
           backgroundColor: isDark ? AppleColors.darkCard : AppleColors.lightCard,
@@ -753,6 +773,26 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       final targetPath = (result['targetPath'] ?? result['path']) as String;
       final targetVfs = (result['targetVfs'] ?? result['vfs']) as VfsProvider;
 
+      final resolvedItems = await FileOperationService.instance.resolveConflicts(
+        context: context,
+        items: selected,
+        targetDirPath: targetPath,
+        targetVfs: targetVfs,
+      );
+
+      if (resolvedItems == null || !mounted) return;
+      if (resolvedItems.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Existing files skipped. Nothing to transfer.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
       setState(() {
         _selectedPaths.clear();
         _isSelectionMode = false;
@@ -760,13 +800,13 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${isMove ? "Moving" : "Copying"} ${selected.length} items to ${targetVfs.displayName}...'),
+          content: Text('${isMove ? "Moving" : "Copying"} ${resolvedItems.length} items to ${targetVfs.displayName}...'),
           duration: const Duration(seconds: 3),
         ),
       );
 
       await TransferManagerService.instance.startTransfer(
-        items: selected,
+        items: resolvedItems,
         targetDirPath: targetPath,
         targetVfs: targetVfs,
         sourceVfs: widget.vfs,
