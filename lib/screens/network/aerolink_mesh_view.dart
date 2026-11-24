@@ -98,6 +98,89 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
     );
   }
 
+  void _showDeviceOptions(AeroLinkDevice device) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text(device.deviceName),
+        message: Text('${device.ip} • ${device.subtitle}'),
+        actions: [
+          if (device.isOnline && device.isPaired)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _handleDeviceTap(device);
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.folder_badge_person_crop, size: 18),
+                  SizedBox(width: 8),
+                  Text('Browse Shared Folders'),
+                ],
+              ),
+            ),
+          if (device.isOnline && !device.isPaired)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _handleDeviceTap(device);
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.lock_shield, size: 18),
+                  SizedBox(width: 8),
+                  Text('Pair with PIN'),
+                ],
+              ),
+            ),
+          if (device.isPaired)
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.pop(ctx);
+                _service.unpairDevice(device.deviceId);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Unpaired from ${device.deviceName}. Next connection will require PIN.')),
+                );
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.lock_open, size: 18),
+                  SizedBox(width: 8),
+                  Text('Forget Pairing (Unpair)'),
+                ],
+              ),
+            ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              _service.forgetDevice(device.deviceId);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Removed ${device.deviceName} from list.')),
+              );
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.trash, size: 18),
+                SizedBox(width: 8),
+                Text('Forget & Remove Device'),
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          child: const Text('Cancel'),
+          onPressed: () => Navigator.pop(ctx),
+        ),
+      ),
+    );
+  }
+
   IconData _getDeviceIcon(String name) {
     final lower = name.toLowerCase();
     if (lower.contains('tab') || lower.contains('pad')) {
@@ -238,16 +321,58 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            ValueListenableBuilder<List<AeroLinkDevice>>(
-              valueListenable: _service.nearbyDevices,
-              builder: (context, devices, _) {
-                final onlineCount = devices.where((d) => d.isOnline).length;
-                return Text(
-                  onlineCount > 0 ? '$onlineCount online' : 'Scanning...',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: onlineCount > 0 ? AppleColors.systemGreen : AppleColors.textTertiary,
-                    fontWeight: FontWeight.w500,
+            ValueListenableBuilder<bool>(
+              valueListenable: _service.isScanning,
+              builder: (context, isScanning, _) {
+                if (isScanning) {
+                  return ValueListenableBuilder<int>(
+                    valueListenable: _service.scanSecondsRemaining,
+                    builder: (context, seconds, _) {
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CupertinoActivityIndicator(radius: 6),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Scanning (${seconds}s)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppleColors.systemBlue,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            onPressed: _service.stopScan,
+                            child: const Text(
+                              'Stop',
+                              style: TextStyle(fontSize: 12, color: AppleColors.systemRed, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                }
+
+                return CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  borderRadius: BorderRadius.circular(10),
+                  color: AppleColors.systemBlue.withValues(alpha: 0.12),
+                  onPressed: () => _service.startScan(durationSeconds: 30),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(CupertinoIcons.arrow_clockwise, size: 12, color: AppleColors.systemBlue),
+                      SizedBox(width: 4),
+                      Text(
+                        'Scan (30s)',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppleColors.systemBlue),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -262,41 +387,91 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
           valueListenable: _service.nearbyDevices,
           builder: (context, devices, _) {
             if (devices.isEmpty) {
-              return Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: isDark ? AppleColors.darkCard : AppleColors.lightCard,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isDark ? AppleColors.borderStroke : AppleColors.lightBorderStroke,
-                    width: 0.5,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(CupertinoIcons.antenna_radiowaves_left_right, color: AppleColors.systemBlue, size: 32),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Looking for AeroFiles devices on your Wi-Fi...',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppleColors.textPrimary : AppleColors.textPrimaryLight,
+              return ValueListenableBuilder<bool>(
+                valueListenable: _service.isScanning,
+                builder: (context, isScanning, _) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppleColors.darkCard : AppleColors.lightCard,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? AppleColors.borderStroke : AppleColors.lightBorderStroke,
+                        width: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Devices with AeroLink enabled will automatically appear here.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isScanning) ...[
+                          const CupertinoActivityIndicator(radius: 14),
+                          const SizedBox(height: 12),
+                          ValueListenableBuilder<int>(
+                            valueListenable: _service.scanSecondsRemaining,
+                            builder: (context, seconds, _) {
+                              return Text(
+                                'Scanning Wi-Fi network... (${seconds}s remaining)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppleColors.textPrimary : AppleColors.textPrimaryLight,
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Searching for devices with AeroLink enabled on this Wi-Fi.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                            ),
+                          ),
+                        ] else ...[
+                          const Icon(CupertinoIcons.antenna_radiowaves_left_right, color: AppleColors.systemBlue, size: 32),
+                          const SizedBox(height: 10),
+                          Text(
+                            'No AeroFiles Devices Found',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? AppleColors.textPrimary : AppleColors.textPrimaryLight,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Make sure other devices are on the same Wi-Fi network with AeroLink enabled.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          CupertinoButton(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            borderRadius: BorderRadius.circular(10),
+                            color: AppleColors.systemBlue,
+                            onPressed: () => _service.startScan(durationSeconds: 30),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(CupertinoIcons.arrow_clockwise, size: 14, color: Colors.white),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Scan for Devices (30s)',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             }
 
@@ -309,6 +484,7 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                       opacity: dev.isOnline ? 1.0 : 0.65,
                       child: AppleCard(
                         onTap: () => _handleDeviceTap(dev),
+                        onLongPress: () => _showDeviceOptions(dev),
                         padding: const EdgeInsets.all(14),
                         child: Row(
                           children: [
@@ -356,6 +532,25 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                                           color: dev.isOnline ? AppleColors.systemGreen : Colors.grey,
                                         ),
                                       ),
+                                      if (dev.isPaired) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: AppleColors.systemGreen.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: const Text(
+                                            'PAIRED',
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppleColors.systemGreen,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                   const SizedBox(height: 2),
@@ -371,24 +566,35 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                                 ],
                               ),
                             ),
-                            if (dev.isOnline && !dev.isPaired)
-                              CupertinoButton(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                minimumSize: Size.zero,
-                                color: AppleColors.systemBlue,
-                                borderRadius: BorderRadius.circular(12),
-                                onPressed: () => _handleDeviceTap(dev),
-                                child: const Text(
-                                  'Pair',
-                                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (dev.isOnline && !dev.isPaired) ...[
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    minimumSize: Size.zero,
+                                    color: AppleColors.systemBlue,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: () => _handleDeviceTap(dev),
+                                    child: const Text(
+                                      'Pair',
+                                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
+                                CupertinoButton(
+                                  padding: const EdgeInsets.all(6),
+                                  minimumSize: Size.zero,
+                                  onPressed: () => _showDeviceOptions(dev),
+                                  child: Icon(
+                                    CupertinoIcons.ellipsis_vertical,
+                                    size: 18,
+                                    color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                                  ),
                                 ),
-                              )
-                            else
-                              Icon(
-                                CupertinoIcons.chevron_right,
-                                size: 16,
-                                color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
-                              ),
+                              ],
+                            ),
                           ],
                         ),
                       ),

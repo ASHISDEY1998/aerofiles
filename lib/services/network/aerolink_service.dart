@@ -29,11 +29,15 @@ class AeroLinkService {
 
   final ValueNotifier<bool> isSharingActive = ValueNotifier<bool>(false);
   final ValueNotifier<List<AeroLinkDevice>> nearbyDevices = ValueNotifier<List<AeroLinkDevice>>([]);
+  final ValueNotifier<bool> isScanning = ValueNotifier<bool>(false);
+  final ValueNotifier<int> scanSecondsRemaining = ValueNotifier<int>(0);
 
   HttpServer? _server;
   RawDatagramSocket? _discoverySocket;
   Timer? _beaconTimer;
   Timer? _watchdogTimer;
+  Timer? _scanCountdownTimer;
+  Timer? _scanPeriodicTimer;
 
   String get deviceId => _deviceId;
   String get deviceName => _deviceName;
@@ -452,11 +456,20 @@ class AeroLinkService {
     });
   }
 
+  String? _getSubnetBroadcast(String ip) {
+    final parts = ip.split('.');
+    if (parts.length == 4) {
+      return '${parts[0]}.${parts[1]}.${parts[2]}.255';
+    }
+    return null;
+  }
+
   Future<void> _broadcastBeacon({bool isBye = false}) async {
     try {
       final ip = await _getLocalIp();
       final packet = jsonEncode({
         'proto': 'aerolink/1.0',
+        'type': 'beacon',
         'deviceId': _deviceId,
         'deviceName': _deviceName,
         'ip': ip,
@@ -467,12 +480,103 @@ class AeroLinkService {
       });
 
       final bytes = utf8.encode(packet);
+      // 1. Global broadcast
       _discoverySocket?.send(bytes, InternetAddress('255.255.255.255'), discoveryPort);
+
+      // 2. Subnet targeted broadcast (e.g. 192.168.1.255)
+      final subnet = _getSubnetBroadcast(ip);
+      if (subnet != null && subnet != '255.255.255.255') {
+        _discoverySocket?.send(bytes, InternetAddress(subnet), discoveryPort);
+      }
     } catch (_) {}
   }
 
   void _sendFarewellBeacon() {
     _broadcastBeacon(isBye: true);
+  }
+
+  // --- Active 30-Second Discovery Scan ---
+
+  void startScan({int durationSeconds = 30}) {
+    if (isScanning.value) return;
+    isScanning.value = true;
+    scanSecondsRemaining.value = durationSeconds;
+
+    LogService.instance.info('AEROLINK', 'Starting active network scan for $durationSeconds seconds');
+
+    // Broadcast discovery query immediately
+    broadcastDiscoveryQuery();
+
+    // Re-query every 3 seconds while active
+    _scanPeriodicTimer?.cancel();
+    _scanPeriodicTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      broadcastDiscoveryQuery();
+    });
+
+    // 1-second countdown timer
+    _scanCountdownTimer?.cancel();
+    _scanCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (scanSecondsRemaining.value <= 1) {
+        stopScan();
+      } else {
+        scanSecondsRemaining.value--;
+      }
+    });
+  }
+
+  void stopScan() {
+    _scanCountdownTimer?.cancel();
+    _scanPeriodicTimer?.cancel();
+    _scanCountdownTimer = null;
+    _scanPeriodicTimer = null;
+    isScanning.value = false;
+    scanSecondsRemaining.value = 0;
+    LogService.instance.info('AEROLINK', 'AeroLink network scan stopped');
+  }
+
+  Future<void> broadcastDiscoveryQuery() async {
+    try {
+      final ip = await _getLocalIp();
+      final packet = jsonEncode({
+        'proto': 'aerolink/1.0',
+        'type': 'query',
+        'fromDeviceId': _deviceId,
+        'fromDeviceName': _deviceName,
+        'ip': ip,
+        'port': defaultServerPort,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final bytes = utf8.encode(packet);
+      // 1. Send query to 255.255.255.255
+      _discoverySocket?.send(bytes, InternetAddress('255.255.255.255'), discoveryPort);
+
+      // 2. Send query to local subnet broadcast
+      final subnet = _getSubnetBroadcast(ip);
+      if (subnet != null && subnet != '255.255.255.255') {
+        _discoverySocket?.send(bytes, InternetAddress(subnet), discoveryPort);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _sendDirectBeacon(InternetAddress targetAddress, int targetPort) async {
+    try {
+      final ip = await _getLocalIp();
+      final packet = jsonEncode({
+        'proto': 'aerolink/1.0',
+        'type': 'beacon',
+        'deviceId': _deviceId,
+        'deviceName': _deviceName,
+        'ip': ip,
+        'port': defaultServerPort,
+        'sharesCount': _sharedFolders.length,
+        'isOnline': true,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final bytes = utf8.encode(packet);
+      _discoverySocket?.send(bytes, targetAddress, targetPort);
+    } catch (_) {}
   }
 
   void _processBeaconDatagram(Datagram datagram) {
@@ -481,6 +585,17 @@ class AeroLinkService {
       final json = jsonDecode(text) as Map<String, dynamic>;
 
       if (json['proto'] != 'aerolink/1.0') return;
+
+      final type = json['type'] as String? ?? 'beacon';
+      if (type == 'query') {
+        // Someone on the network is scanning! If we are sharing, reply immediately directly to them (unicast)
+        final fromId = json['fromDeviceId'] as String? ?? '';
+        if (fromId != _deviceId && isSharingActive.value) {
+          _sendDirectBeacon(datagram.address, datagram.port);
+        }
+        return;
+      }
+
       final remoteId = json['deviceId'] as String? ?? '';
       if (remoteId.isEmpty || remoteId == _deviceId) return; // Ignore own beacon
 
@@ -527,14 +642,15 @@ class AeroLinkService {
     bool changed = false;
 
     for (final dev in currentList) {
-      if (dev.isOnline && now.difference(dev.lastSeen).inSeconds > 10) {
+      // Keep devices marked online for 60 seconds of silence to prevent Wi-Fi power-save drops
+      if (dev.isOnline && now.difference(dev.lastSeen).inSeconds > 60) {
         dev.isOnline = false; // Transition to "Device Offline" with device name!
         changed = true;
       }
     }
 
-    // Prune devices offline for more than 15 minutes
-    currentList.removeWhere((d) => !d.isOnline && now.difference(d.lastSeen).inMinutes > 15);
+    // Prune devices offline for more than 30 minutes
+    currentList.removeWhere((d) => !d.isOnline && now.difference(d.lastSeen).inMinutes > 30);
 
     if (changed) {
       nearbyDevices.value = currentList;
@@ -589,6 +705,16 @@ class AeroLinkService {
     nearbyDevices.value = list;
   }
 
+  void forgetDevice(String deviceId) {
+    _remoteAuthTokens.remove(deviceId);
+    _prefs.setString('aerolink_remote_tokens_json', jsonEncode(_remoteAuthTokens));
+    final list = List<AeroLinkDevice>.from(nearbyDevices.value);
+    list.removeWhere((d) => d.deviceId == deviceId);
+    nearbyDevices.value = list;
+  }
+
+  Future<String> getLocalIp() => _getLocalIp();
+
   // --- Utilities ---
 
   Future<String> _getLocalIp() async {
@@ -620,6 +746,8 @@ class AeroLinkService {
   }
 
   void dispose() {
+    _scanCountdownTimer?.cancel();
+    _scanPeriodicTimer?.cancel();
     _beaconTimer?.cancel();
     _watchdogTimer?.cancel();
     _discoverySocket?.close();

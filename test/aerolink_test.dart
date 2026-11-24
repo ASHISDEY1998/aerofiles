@@ -83,6 +83,9 @@ void main() {
 
       final paired = unconfirmed.copyWith(authToken: 'sec_token_xyz987');
       expect(paired.isPaired, isTrue);
+
+      final unpaired = paired.copyWith(authToken: '');
+      expect(unpaired.isPaired, isFalse);
     });
   });
 
