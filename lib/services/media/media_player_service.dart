@@ -83,6 +83,12 @@ class MediaPlayerService {
       }
     });
 
+    player.stream.playing.listen((isPlaying) {
+      if (Platform.isAndroid) {
+        _audioChannel.invokeMethod('updatePlaybackState', {'isPlaying': isPlaying});
+      }
+    });
+
     player.stream.error.listen((error) {
       LogService.instance.error('PLAYER', 'media_kit player error: $error');
     });

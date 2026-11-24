@@ -51,10 +51,12 @@ class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObse
     try {
       final success = await _biometricService.authenticate(
         reason: 'Unlock AeroFiles to access your files',
-      );
+      ).timeout(const Duration(seconds: 15), onTimeout: () => false);
       if (!success && mounted) {
         // Remain on lock screen
       }
+    } catch (_) {
+      // Ignored - will reset _isAuthenticating in finally
     } finally {
       if (mounted) {
         setState(() => _isAuthenticating = false);
@@ -119,28 +121,42 @@ class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObse
                             ),
                             const SizedBox(height: 36),
                             SizedBox(
-                              width: 220,
-                              height: 48,
+                              width: 230,
+                              height: 50,
                               child: CupertinoButton(
+                                padding: EdgeInsets.zero,
                                 color: AppleColors.systemBlue,
-                                borderRadius: BorderRadius.circular(24),
+                                disabledColor: AppleColors.systemBlue.withValues(alpha: 0.75),
+                                borderRadius: BorderRadius.circular(25),
                                 onPressed: _isAuthenticating ? null : _attemptUnlock,
-                                child: _isAuthenticating
-                                    ? const CupertinoActivityIndicator(color: Colors.white)
-                                    : const Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(CupertinoIcons.lock_open_fill, size: 18),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            'Unlock',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                        ],
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (_isAuthenticating) ...[
+                                      const CupertinoActivityIndicator(color: Colors.white, radius: 9),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Authenticating...',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 16,
+                                        ),
                                       ),
+                                    ] else ...[
+                                      const Icon(CupertinoIcons.lock_open_fill, size: 20, color: Colors.white),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Unlock AeroFiles',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
                           ],

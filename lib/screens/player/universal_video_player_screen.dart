@@ -139,13 +139,27 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
 
     // Support headphone & Bluetooth media next/prev buttons
     _mediaService.onMediaNext = () {
-      if (mounted && _hasNext) {
-        _playVideoAtIndex(_currentIndex + 1);
+      if (mounted) {
+        if (_hasNext) {
+          _playVideoAtIndex(_currentIndex + 1);
+        } else {
+          final current = _mediaService.player.state.position;
+          final total = _mediaService.player.state.duration;
+          final target = current + const Duration(seconds: 10);
+          _mediaService.seek(target < total ? target : total);
+        }
       }
     };
     _mediaService.onMediaPrevious = () {
-      if (mounted && _hasPrevious) {
-        _playVideoAtIndex(_currentIndex - 1);
+      if (mounted) {
+        final current = _mediaService.player.state.position;
+        if (current.inSeconds > 3) {
+          _mediaService.seek(Duration.zero);
+        } else if (_hasPrevious) {
+          _playVideoAtIndex(_currentIndex - 1);
+        } else {
+          _mediaService.seek(Duration.zero);
+        }
       }
     };
 

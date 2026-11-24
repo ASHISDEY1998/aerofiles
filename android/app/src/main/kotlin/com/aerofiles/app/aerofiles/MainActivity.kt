@@ -17,6 +17,8 @@ import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.media.ThumbnailUtils
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Environment
@@ -44,6 +46,141 @@ class MainActivity : FlutterFragmentActivity() {
     private var becomingNoisyReceiver: BroadcastReceiver? = null
     private var methodChannel: MethodChannel? = null
     private var multicastLock: WifiManager.MulticastLock? = null
+    private var mediaSession: MediaSession? = null
+
+    private fun setupMediaSession() {
+        if (mediaSession == null) {
+            mediaSession = MediaSession(this, "AeroFilesMediaSession").apply {
+                setCallback(object : MediaSession.Callback() {
+                    override fun onPlay() {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onMediaPlay", null)
+                        }
+                    }
+
+                    override fun onPause() {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onMediaPause", null)
+                        }
+                    }
+
+                    override fun onSkipToNext() {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onMediaNext", null)
+                        }
+                    }
+
+                    override fun onSkipToPrevious() {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onMediaPrevious", null)
+                        }
+                    }
+
+                    override fun onFastForward() {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onMediaNext", null)
+                        }
+                    }
+
+                    override fun onRewind() {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onMediaPrevious", null)
+                        }
+                    }
+
+                    override fun onStop() {
+                        runOnUiThread {
+                            methodChannel?.invokeMethod("onMediaPause", null)
+                        }
+                    }
+
+                    override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                        val event = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+                        }
+                        if (event != null && event.action == android.view.KeyEvent.ACTION_DOWN) {
+                            when (event.keyCode) {
+                                android.view.KeyEvent.KEYCODE_HEADSETHOOK,
+                                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                                    runOnUiThread {
+                                        methodChannel?.invokeMethod("onMediaPlayPause", null)
+                                    }
+                                    return true
+                                }
+                                android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                                    runOnUiThread {
+                                        methodChannel?.invokeMethod("onMediaPlay", null)
+                                    }
+                                    return true
+                                }
+                                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                                    runOnUiThread {
+                                        methodChannel?.invokeMethod("onMediaPause", null)
+                                    }
+                                    return true
+                                }
+                                android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
+                                android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+                                android.view.KeyEvent.KEYCODE_MEDIA_STEP_FORWARD -> {
+                                    runOnUiThread {
+                                        methodChannel?.invokeMethod("onMediaNext", null)
+                                    }
+                                    return true
+                                }
+                                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+                                android.view.KeyEvent.KEYCODE_MEDIA_REWIND,
+                                android.view.KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD -> {
+                                    runOnUiThread {
+                                        methodChannel?.invokeMethod("onMediaPrevious", null)
+                                    }
+                                    return true
+                                }
+                            }
+                        }
+                        return super.onMediaButtonEvent(mediaButtonIntent)
+                    }
+                })
+                setFlags(
+                    MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
+                    MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
+                )
+            }
+        }
+    }
+
+    private fun updateMediaSessionPlaybackState(isPlaying: Boolean) {
+        try {
+            setupMediaSession()
+            val actions = PlaybackState.ACTION_PLAY or
+                    PlaybackState.ACTION_PAUSE or
+                    PlaybackState.ACTION_PLAY_PAUSE or
+                    PlaybackState.ACTION_SKIP_TO_NEXT or
+                    PlaybackState.ACTION_SKIP_TO_PREVIOUS or
+                    PlaybackState.ACTION_FAST_FORWARD or
+                    PlaybackState.ACTION_REWIND or
+                    PlaybackState.ACTION_STOP
+
+            val state = if (isPlaying) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
+            val playbackState = PlaybackState.Builder()
+                .setActions(actions)
+                .setState(state, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f)
+                .build()
+
+            mediaSession?.setPlaybackState(playbackState)
+            mediaSession?.isActive = true
+        } catch (_: Throwable) {}
+    }
+
+    private fun releaseMediaSession() {
+        try {
+            mediaSession?.isActive = false
+            mediaSession?.release()
+            mediaSession = null
+        } catch (_: Throwable) {}
+    }
 
     private fun acquireMulticastLock() {
         try {
@@ -68,6 +205,9 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private fun setupAudioFocus() {
+        setupMediaSession()
+        updateMediaSessionPlaybackState(true)
+
         if (audioManager == null) {
             audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         }
@@ -117,6 +257,7 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private fun abandonAudioFocus() {
+        updateMediaSessionPlaybackState(false)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
                 audioManager?.abandonAudioFocusRequest(audioFocusRequest!!)
@@ -301,6 +442,11 @@ class MainActivity : FlutterFragmentActivity() {
                 }
                 "abandonAudioFocus" -> {
                     abandonAudioFocus()
+                    result.success(true)
+                }
+                "updatePlaybackState" -> {
+                    val isPlaying = call.argument<Boolean>("isPlaying") ?: false
+                    updateMediaSessionPlaybackState(isPlaying)
                     result.success(true)
                 }
                 "acquireMulticastLock" -> {
@@ -578,6 +724,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onDestroy() {
         abandonAudioFocus()
+        releaseMediaSession()
         stopTransferNotification()
         super.onDestroy()
     }
