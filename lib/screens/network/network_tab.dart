@@ -1,8 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../models/network_connection.dart';
-import '../../services/network/ftp_server_service.dart';
 import '../../services/network/lan_scanner_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/vfs/local_vfs.dart';
@@ -12,6 +10,7 @@ import '../../services/vfs/webdav_vfs.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/apple_card.dart';
 import '../local/directory_browser_screen.dart';
+import 'aerolink_mesh_view.dart';
 
 class NetworkTab extends StatefulWidget {
   final LocalVfs localVfs;
@@ -23,10 +22,8 @@ class NetworkTab extends StatefulWidget {
 }
 
 class _NetworkTabState extends State<NetworkTab> {
-  final _ftpServer = FtpServerService();
   final _lanScanner = LanScannerService();
 
-  bool _isServerActive = false;
   bool _isScanning = false;
   double _scanProgress = 0.0;
   List<DiscoveredDevice> _discoveredDevices = [];
@@ -42,12 +39,6 @@ class _NetworkTabState extends State<NetworkTab> {
   void initState() {
     super.initState();
     _pingAllConnections();
-  }
-
-  @override
-  void dispose() {
-    _ftpServer.stopServer();
-    super.dispose();
   }
 
   Future<void> _pingAllConnections() async {
@@ -68,24 +59,6 @@ class _NetworkTabState extends State<NetworkTab> {
       }
     }
     _isPingingAll = false;
-  }
-
-  void _toggleServer(bool value) async {
-    if (value) {
-      final started = await _ftpServer.startServer(
-        port: 8080,
-        rootPath: widget.localVfs.rootPath,
-      );
-      setState(() => _isServerActive = started);
-      if (!started && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to bind server port')),
-        );
-      }
-    } else {
-      await _ftpServer.stopServer();
-      setState(() => _isServerActive = false);
-    }
   }
 
   void _startLanScan() async {
@@ -428,82 +401,8 @@ class _NetworkTabState extends State<NetworkTab> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Access From PC (FTP / HTTP Wireless Server) Card
-                AppleCard(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(CupertinoIcons.desktopcomputer, color: AppleColors.systemBlue, size: 28),
-                              SizedBox(width: 12),
-                              Text(
-                                'Access from PC',
-                                style: TextStyle(
-                                  color: AppleColors.textPrimary,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          CupertinoSwitch(
-                            value: _isServerActive,
-                            activeTrackColor: AppleColors.systemBlue,
-                            onChanged: _toggleServer,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _isServerActive
-                            ? 'Open this URL in your PC browser on the same Wi-Fi:'
-                            : 'Manage your device files wirelessly from a PC browser.',
-                        style: const TextStyle(color: AppleColors.textSecondary, fontSize: 13),
-                      ),
-                      if (_isServerActive) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: AppleColors.pureBlack,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppleColors.systemBlue, width: 1),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _ftpServer.serverUrl,
-                                style: const TextStyle(
-                                  color: AppleColors.systemTeal,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              CupertinoButton(
-                                padding: EdgeInsets.zero,
-                                minimumSize: Size.zero,
-                                child: const Icon(CupertinoIcons.doc_on_clipboard, color: AppleColors.systemBlue),
-                                onPressed: () {
-                                  Clipboard.setData(ClipboardData(text: _ftpServer.serverUrl));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Server URL copied to clipboard!')),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                // AeroLink Mesh - Private Device-to-Device Sharing & Zero-Download Streaming
+                AeroLinkMeshView(localVfs: widget.localVfs),
 
                 const SizedBox(height: 24),
 

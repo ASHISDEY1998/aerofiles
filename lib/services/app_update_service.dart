@@ -41,7 +41,7 @@ class AppUpdateService {
 
   /// Release compilation timestamp (UTC) for the installed build.
   /// Used for release date/time comparison alongside SemVer.
-  static final DateTime localReleaseDate = DateTime.utc(2026, 11, 24, 11, 30, 0);
+  static final DateTime localReleaseDate = DateTime.utc(2026, 11, 24, 14, 0, 0);
 
   bool _isChecking = false;
   bool _isDialogShowing = false;

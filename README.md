@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.0.0_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.1.0_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -20,13 +20,14 @@
   <img src="https://img.shields.io/badge/Architecture-ARM64_%7C_ARMv7_%7C_x86__64-blue?style=flat-square" alt="Arch" />
   <img src="https://img.shields.io/badge/Engine-Flutter_%7C_libmpv-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter" />
   <img src="https://img.shields.io/badge/Security-AES--256_Vault-green?style=flat-square" alt="Security" />
+  <img src="https://img.shields.io/badge/Mesh-AeroLink_Private_P2P-cyan?style=flat-square" alt="AeroLink Mesh" />
   <img src="https://img.shields.io/badge/Theme-OLED_Dark_%26_Light-000000?style=flat-square" alt="Theme" />
   <img src="https://img.shields.io/badge/License-MIT-orange?style=flat-square" alt="License" />
 </p>
 
 ---
 
-## 📲 Direct Downloads (v2.0.0 / Build 16)
+## 📲 Direct Downloads (v2.1.0 / Build 17)
 
 Download the official standalone release for your device architecture:
 
@@ -36,7 +37,7 @@ Download the official standalone release for your device architecture:
 | **AeroFiles (armv7)** | 32-bit ARM (`armeabi-v7a`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-armv7.apk) | **~32 MB** | Legacy Android devices |
 | **AeroFiles (x86_64)** | 64-bit Intel/AMD (`x86_64`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-x86_64.apk) | **~39 MB** | Chromebooks & Android Emulators |
 | **AeroFiles (Universal)**| All Architectures | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk) | **~102 MB** | Universal fat APK containing all native binaries |
-| **AeroFiles App Bundle** | Android App Bundle (`.aab`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.aab) | **~154 MB** | Signed bundle for Google Play Console publishing |
+| **AeroFiles App Bundle** | Android App Bundle (`.aab`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.aab) | **~77 MB** | Signed bundle for Google Play Console publishing |
 
 * **Android Compatibility:** Android 8.0 (Oreo) to Android 15+
 
@@ -93,18 +94,26 @@ Download the official standalone release for your device architecture:
 
 ---
 
-### 🌐 4. Local Network Storage (SMB, SFTP, WebDAV & Wi-Fi Server)
+### ⚡ 4. AeroLink Mesh (Private Peer-to-Peer Sharing & Zero-Download Remote Streaming)
+* **Zero-Download On-The-Fly Media Streaming:** Stream high-bitrate 4K/1080p movies and music directly from another device over local Wi-Fi. Files are decoded in real-time through `UniversalVideoPlayerScreen` (`media_kit` / `libmpv`) via HTTP byte-range (`Range: bytes=start-end`) seeking without downloading files locally to your storage.
+* **AeroFiles-to-AeroFiles Private & Encrypted Tunnel:** Replaces open/unauthenticated file servers with a private mesh. Non-AeroFiles devices, browsers, and port scanners on your local network receive `403 Forbidden`. Only authorized AeroFiles devices paired via one-time 6-digit PIN / cryptographically secure auth tokens can browse and stream.
+* **Automated UDP Beacon Discovery & Live Presence:** Zero configuration required. Running AeroFiles devices announce their presence via UDP port `52830` every 4 seconds. Nearby devices appear automatically in the Network tab with live status badges (🟢 **Online • X shared folders** vs. ⚪ **Device Offline • Last seen Xm ago**).
+* **Designated Shared Folders & Path Traversal Shield:** Designate specific folders (e.g. `Movies`, `Family Photos`, `Work Documents`) to share across your household or office devices. Strictly sandboxed with path traversal prevention—parent directory escaping (`../`) is completely blocked.
+* **Instant Device Pairing:** Enter the host device's 6-digit pairing PIN once. The issued persistent authentication token keeps devices paired across app restarts with one-tap PIN regeneration on the host.
+
+---
+
+### 🌐 5. Local Network Storage (SMB, SFTP & WebDAV)
 * **SMB 2/3 Protocol Support:** Connect directly to Windows shared folders, Samba shares, TrueNAS, Unraid, Synology, and QNAP network attached storage.
 * **SFTP / SSH Storage:** Secure file transfers over SSH using password or private key authentication.
 * **WebDAV Support:** Connect to Nextcloud, ownCloud, and local WebDAV storage drives.
 * **Zero-RAM Chunked Streaming Uploads:** Multi-gigabyte videos stream in 64 KB chunks directly to SMB, SFTP, and WebDAV servers with zero RAM overhead, completely preventing OutOfMemory errors and packet drops.
 * **Safe Move Semantics:** When moving files from device to network drives, local source files are strictly retained until the remote destination write is verified and complete.
 * **Zero-Download Remote Streaming:** Stream multi-gigabyte high-bitrate movies directly from your home NAS with byte-range seeking over local Wi-Fi.
-* **PC Web Transfer Server:** Built-in lightweight HTTP server allows browsing, uploading, and downloading phone files from any desktop browser on the local network.
 
 ---
 
-### 🛡️ 5. Background File Operations & Resilient Transfer Engine
+### 🛡️ 6. Background File Operations & Resilient Transfer Engine
 * **Floating Live Transfer Progress Bubble:** An animated glassmorphic bubble appears at the bottom right whenever file transfers begin. Tapping it opens a dedicated screen showing per-item progress bars, transfer speeds (MB/s), total megabytes, individual retry controls, and cancel buttons.
 * **Auto-Resumption on Network Recovery:** If a Wi-Fi drop or connection timeout interrupts transfers to a NAS or network drive, tasks are gracefully paused rather than discarded. An automatic reconnection watcher monitors network availability and immediately resumes transfers once the connection recovers.
 * **Interactive Conflict Resolution Dialog:** When moving or copying files into a destination where matching files already exist, AeroFiles prompts you with options to **Replace / Replace All**, **Skip / Skip Existing**, or **Cancel**.
@@ -116,7 +125,7 @@ Download the official standalone release for your device architecture:
 
 ---
 
-### 📱 6. Tablet, Foldable & Desktop UX
+### 📱 7. Tablet, Foldable & Desktop UX
 * **Dashboard Default & Two-Pane Split View:** On tablets, foldables, and Samsung DeX, the app defaults to the full Home Dashboard (Main Storage gauge, Downloads, Safe Vault, Recycle Bin, Storage Analyzer) with a left navigation sidebar (30%) and content pane (70%).
 * **Hardware Keyboard Shortcuts:**
   * <kbd>Space</kbd>: Quick Preview
@@ -126,7 +135,7 @@ Download the official standalone release for your device architecture:
 
 ---
 
-### ⚡ 7. Ultra-Fast Disk-Persistent Thumbnail Cache
+### ⚡ 8. Ultra-Fast Disk-Persistent Thumbnail Cache
 * **Instant Disk-Cached Loading:** Scaled video thumbnails are cached directly to `context.cacheDir/thumbnails/` using MD5 hash & file modification timestamp keys. On app launch, thumbnails load in `<1ms` with zero CPU decode spikes.
 * **Two-Tier Architecture:** Combines a 100-item compact in-memory L1 LRU cache with an L2 persistent disk cache.
 * **Strict Resource Guardrails:** Automatic LRU pruning bounds cache size at 60 MB or 1,500 files, and in-flight request deduplication prevents redundant background decodes.
