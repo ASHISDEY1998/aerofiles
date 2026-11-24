@@ -20,6 +20,8 @@ class MediaPlayerService {
 
   bool _isDisposed = false;
   void Function()? onAudioFocusInterrupted;
+  void Function()? onMediaNext;
+  void Function()? onMediaPrevious;
 
   MediaPlayerService() {
     ensureInitialized();
@@ -63,6 +65,21 @@ class MediaPlayerService {
         LogService.instance.info('PLAYER', 'Audio focus lost or becoming noisy (${call.method}) -> Pausing video');
         await pause();
         onAudioFocusInterrupted?.call();
+      } else if (call.method == 'onMediaPlayPause') {
+        LogService.instance.info('PLAYER', 'Headset / Media Play-Pause event received');
+        await playOrPause();
+      } else if (call.method == 'onMediaPlay') {
+        LogService.instance.info('PLAYER', 'Headset / Media Play event received');
+        await play();
+      } else if (call.method == 'onMediaPause') {
+        LogService.instance.info('PLAYER', 'Headset / Media Pause event received');
+        await pause();
+      } else if (call.method == 'onMediaNext') {
+        LogService.instance.info('PLAYER', 'Headset / Media Next event received');
+        onMediaNext?.call();
+      } else if (call.method == 'onMediaPrevious') {
+        LogService.instance.info('PLAYER', 'Headset / Media Previous event received');
+        onMediaPrevious?.call();
       }
     });
 

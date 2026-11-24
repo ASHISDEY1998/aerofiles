@@ -9,6 +9,7 @@ import '../../services/recycle_bin_service.dart';
 import '../../services/security/safe_vault_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/transfer_manager_service.dart';
+import '../../services/vfs/aerolink_vfs.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
 import '../../theme/apple_theme.dart';
@@ -317,7 +318,33 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     );
   }
 
+  bool get _isReadOnly => widget.vfs is AeroLinkVfs || (widget.vfs is! LocalVfs);
+
+  void _showReadOnlyAlert() {
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        dismissDirection: DismissDirection.down,
+        duration: const Duration(seconds: 3),
+        content: const Row(
+          children: [
+            Icon(CupertinoIcons.exclamationmark_circle, color: AppleColors.systemOrange, size: 20),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Cannot modify remote files. AeroLink storage is read-only.'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showCreateFolderDialog() {
+    if (_isReadOnly) {
+      _showReadOnlyAlert();
+      return;
+    }
     final controller = TextEditingController();
     showCupertinoDialog(
       context: context,
@@ -355,6 +382,11 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   Future<void> _handleBatchDelete() async {
     final selected = _selectedNodes;
     if (selected.isEmpty) return;
+
+    if (_isReadOnly) {
+      _showReadOnlyAlert();
+      return;
+    }
 
     final settings = SettingsService.instance;
     final behavior = settings.deleteBehavior;
@@ -549,15 +581,31 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       _isSelectionMode = false;
     });
     if (mounted) {
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          behavior: SnackBarBehavior.floating,
+          dismissDirection: DismissDirection.down,
           duration: const Duration(seconds: 4),
-          content: Text(
-            moveToTrash
-                ? (selected.length == 1
-                    ? '"${selected.first.name}" moved to Recycle Bin'
-                    : '${selected.length} items moved to Recycle Bin')
-                : '${selected.length} items permanently deleted',
+          content: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragEnd: (details) {
+              if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              }
+            },
+            onVerticalDragUpdate: (details) {
+              if (details.delta.dy > 3) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              }
+            },
+            child: Text(
+              moveToTrash
+                  ? (selected.length == 1
+                      ? '"${selected.first.name}" moved to Recycle Bin'
+                      : '${selected.length} items moved to Recycle Bin')
+                  : '${selected.length} items permanently deleted',
+            ),
           ),
           action: moveToTrash
               ? SnackBarAction(
@@ -567,8 +615,11 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
                     final count = await RecycleBinService.instance.restoreRecentlyTrashed();
                     if (mounted) {
                       _loadDirectory();
+                      ScaffoldMessenger.of(context).removeCurrentSnackBar();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
+                          behavior: SnackBarBehavior.floating,
+                          dismissDirection: DismissDirection.down,
                           duration: const Duration(seconds: 2),
                           content: Text('$count item${count == 1 ? '' : 's'} restored'),
                         ),
@@ -677,6 +728,11 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   Future<void> _handleKeyboardPaste() async {
     final clip = FileOperationService.instance.clipboardItems;
     if (clip.isEmpty) return;
+
+    if (_isReadOnly) {
+      _showReadOnlyAlert();
+      return;
+    }
 
     final isCut = FileOperationService.instance.isClipboardCut;
     final sourceVfs = FileOperationService.instance.clipboardSourceVfs ?? widget.vfs;
@@ -941,6 +997,10 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   }
 
   void _promptRename(VfsNode node) {
+    if (_isReadOnly) {
+      _showReadOnlyAlert();
+      return;
+    }
     final controller = TextEditingController(text: node.name);
     showCupertinoDialog(
       context: context,

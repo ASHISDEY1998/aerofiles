@@ -170,10 +170,26 @@ class _StorageAnalysisScreenState extends State<StorageAnalysisScreen> {
       setState(() {
         _info!.largeFiles.remove(file);
       });
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          behavior: SnackBarBehavior.floating,
+          dismissDirection: DismissDirection.down,
           duration: const Duration(seconds: 4),
-          content: Text('"${file.name}" moved to Recycle Bin'),
+          content: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragEnd: (details) {
+              if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              }
+            },
+            onVerticalDragUpdate: (details) {
+              if (details.delta.dy > 3) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              }
+            },
+            child: Text('"${file.name}" moved to Recycle Bin'),
+          ),
           action: SnackBarAction(
             label: 'Undo',
             textColor: AppleColors.systemBlue,

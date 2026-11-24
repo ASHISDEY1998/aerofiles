@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.1.2_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.1.3_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 📲 Direct Downloads (v2.1.2 / Build 19)
+## 📲 Direct Downloads (v2.1.3 / Build 20)
 
 Download the official standalone release for your device architecture:
 
@@ -139,6 +139,16 @@ Download the official standalone release for your device architecture:
 * **Instant Disk-Cached Loading:** Scaled video thumbnails are cached directly to `context.cacheDir/thumbnails/` using MD5 hash & file modification timestamp keys. On app launch, thumbnails load in `<1ms` with zero CPU decode spikes.
 * **Two-Tier Architecture:** Combines a 100-item compact in-memory L1 LRU cache with an L2 persistent disk cache.
 * **Strict Resource Guardrails:** Automatic LRU pruning bounds cache size at 60 MB or 1,500 files, and in-flight request deduplication prevents redundant background decodes.
+
+---
+
+### 📱 9. Mobile Responsiveness, Headset Controls & AeroLink Read-Only Guard (v2.1.3)
+* **Adaptive Video Player Orientation:** Automatically detects video aspect ratio (portrait or landscape) without forcing an awkward default landscape lock, while maintaining fluid sensor-based device rotation.
+* **Responsive Top Bar Navigation:** Prevents header text and playlist squashing on phones by consolidating secondary player actions into a clean Apple-style 'More' (`...`) menu.
+* **Headphone / Earphone Middle Button Controls:** Dispatches native key events (`KEYCODE_HEADSETHOOK` and `KEYCODE_MEDIA_PLAY_PAUSE`) to effortlessly play/pause videos from wired and Bluetooth headsets.
+* **AeroLink Read-Only Safety Alert:** Intercepts delete, rename, and move operations on remote streaming devices and surfaces an alert: *'Cannot modify remote files. AeroLink storage is read-only.'*
+* **Swipe-to-Dismiss Undo Toasts:** Deletion confirmation and undo banners can now be dismissed immediately by dragging down before the 4-second timeout.
+* **Network Tab Overflow Fixes:** Added solid navigation bar backgrounds with hairline dividers and flexible card containers to prevent UI clipping on narrow screens.
 
 ---
 

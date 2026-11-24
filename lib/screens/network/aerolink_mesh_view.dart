@@ -218,42 +218,51 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [AppleColors.systemBlue, AppleColors.systemIndigo],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            alignment: Alignment.center,
-                            child: const Icon(CupertinoIcons.folder_fill_badge_person_crop, color: Colors.white, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'AeroLink Mesh',
-                                style: TextStyle(
-                                  color: AppleColors.textPrimary,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [AppleColors.systemBlue, AppleColors.systemIndigo],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                              Text(
-                                'Private Device-to-Device Sharing',
-                                style: TextStyle(color: AppleColors.textSecondary, fontSize: 11),
+                              alignment: Alignment.center,
+                              child: const Icon(CupertinoIcons.folder_fill_badge_person_crop, color: Colors.white, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'AeroLink Mesh',
+                                    style: TextStyle(
+                                      color: AppleColors.textPrimary,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Private Device-to-Device Sharing',
+                                    style: TextStyle(color: AppleColors.textSecondary, fontSize: 11),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 10),
                       CupertinoSwitch(
                         value: isActive,
                         activeTrackColor: AppleColors.systemBlue,

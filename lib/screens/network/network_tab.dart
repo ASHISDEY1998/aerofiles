@@ -394,11 +394,16 @@ class _NetworkTabState extends State<NetworkTab> {
         slivers: [
           CupertinoSliverNavigationBar(
             largeTitle: Text('Network', style: TextStyle(color: isDark ? Colors.white : AppleColors.textPrimaryLight)),
-            backgroundColor: isDark ? const Color(0xCC000000) : const Color(0xCCF2F2F7),
-            border: null,
+            backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
+            border: Border(
+              bottom: BorderSide(
+                color: isDark ? AppleColors.borderStroke : AppleColors.lightBorderStroke,
+                width: 0.5,
+              ),
+            ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // AeroLink Mesh - Private Device-to-Device Sharing & Zero-Download Streaming
@@ -614,24 +619,27 @@ class _NetworkTabState extends State<NetworkTab> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Scan Local Network (LAN)',
-                                style: TextStyle(
-                                  color: AppleColors.textPrimary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Scan Local Network (LAN)',
+                                  style: TextStyle(
+                                    color: AppleColors.textPrimary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Auto-detect SMB, NAS, and PC shares on Wi-Fi',
-                                style: TextStyle(color: AppleColors.textSecondary, fontSize: 12),
-                              ),
-                            ],
+                                SizedBox(height: 2),
+                                Text(
+                                  'Auto-detect SMB, NAS, and PC shares on Wi-Fi',
+                                  style: TextStyle(color: AppleColors.textSecondary, fontSize: 12),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 12),
                           CupertinoButton(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                             color: AppleColors.systemBlue,

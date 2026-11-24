@@ -11,6 +11,7 @@ import '../../services/log_service.dart';
 import '../../services/media/media_player_service.dart';
 import '../../services/media/playback_history_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/vfs/aerolink_vfs.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
 import '../../theme/apple_theme.dart';
@@ -43,6 +44,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   late String _currentPlaybackUri;
   StreamSubscription? _completedSubscription;
   StreamSubscription? _positionSubscription;
+  StreamSubscription? _videoParamsSubscription;
   bool _isSwitchingVideo = false;
   bool _hasDeletedAny = false;
 
@@ -121,19 +123,31 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     // Enable immersive sticky fullscreen
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-    // On phones, auto-orient to landscape; on tablets, allow free orientation
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Natural orientation - allow free sensor rotation without forced landscape default
+    SystemChrome.setPreferredOrientations([]);
+
+    // Adapt orientation automatically based on actual video aspect ratio
+    _videoParamsSubscription = _mediaService.player.stream.videoParams.listen((params) {
       if (!mounted) return;
-      final shortestSide = MediaQuery.of(context).size.shortestSide;
-      if (shortestSide < 600) {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
-      } else {
-        SystemChrome.setPreferredOrientations([]);
+      if (params.w != null && params.h != null && params.w! > 0 && params.h! > 0) {
+        final isPortraitVideo = params.h! > params.w!;
+        setState(() {
+          _isLandscape = !isPortraitVideo;
+        });
       }
     });
+
+    // Support headphone & Bluetooth media next/prev buttons
+    _mediaService.onMediaNext = () {
+      if (mounted && _hasNext) {
+        _playVideoAtIndex(_currentIndex + 1);
+      }
+    };
+    _mediaService.onMediaPrevious = () {
+      if (mounted && _hasPrevious) {
+        _playVideoAtIndex(_currentIndex - 1);
+      }
+    };
 
     // Initialize volume from player
     _volume = _mediaService.player.state.volume;
@@ -340,6 +354,33 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   void _confirmDeleteCurrentVideo() {
     if (_playlist.isEmpty || _currentIndex >= _playlist.length) return;
     final currentNode = _playlist[_currentIndex];
+
+    final isRemote = widget.vfs is AeroLinkVfs ||
+        (widget.vfs != null && widget.vfs is! LocalVfs) ||
+        _currentPlaybackUri.startsWith('http://') ||
+        _currentPlaybackUri.startsWith('https://');
+
+    if (isRemote) {
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          dismissDirection: DismissDirection.down,
+          duration: const Duration(seconds: 3),
+          content: const Row(
+            children: [
+              Icon(CupertinoIcons.exclamationmark_circle, color: AppleColors.systemOrange, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Cannot modify remote files. AeroLink storage is read-only.'),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
     final settings = SettingsService.instance;
     final behavior = settings.deleteBehavior;
 
@@ -560,14 +601,30 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       LogService.instance.info('PLAYER', 'Successfully deleted "${node.name}" from storage');
 
       if (mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              moveToTrash
-                  ? '"${node.name}" moved to Recycle Bin'
-                  : '"${node.name}" permanently deleted',
+            behavior: SnackBarBehavior.floating,
+            dismissDirection: DismissDirection.down,
+            duration: const Duration(seconds: 4),
+            content: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragEnd: (details) {
+                if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                }
+              },
+              onVerticalDragUpdate: (details) {
+                if (details.delta.dy > 3) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                }
+              },
+              child: Text(
+                moveToTrash
+                    ? '"${node.name}" moved to Recycle Bin'
+                    : '"${node.name}" permanently deleted',
+              ),
             ),
-            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -603,8 +660,12 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     _fitHudTimer?.cancel();
     _completedSubscription?.cancel();
     _positionSubscription?.cancel();
+    _videoParamsSubscription?.cancel();
     _resumeBannerTimer?.cancel();
     _seekRippleTimer?.cancel();
+
+    _mediaService.onMediaNext = null;
+    _mediaService.onMediaPrevious = null;
 
     // Persist position upon exit
     PlaybackHistoryService.instance.savePosition(
@@ -953,6 +1014,36 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     }
   }
 
+  void _showSpeedSelector() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Playback Speed'),
+        actions: [
+          for (final s in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                setState(() => _playbackSpeed = s);
+                _mediaService.setRate(s);
+              },
+              child: Text(
+                '${s}x${_playbackSpeed == s ? " ✓" : ""}',
+                style: TextStyle(
+                  color: _playbackSpeed == s ? AppleColors.systemBlue : null,
+                  fontWeight: _playbackSpeed == s ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          child: const Text('Cancel'),
+          onPressed: () => Navigator.pop(ctx),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final player = _mediaService.player;
@@ -963,8 +1054,33 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
         if (didPop) return;
         Navigator.pop(context, _hasDeletedAny);
       },
-      child: Scaffold(
-        backgroundColor: Colors.black,
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.mediaPlayPause ||
+                event.logicalKey == LogicalKeyboardKey.headsetHook ||
+                event.logicalKey == LogicalKeyboardKey.space) {
+              _mediaService.playOrPause();
+              return KeyEventResult.handled;
+            } else if (event.logicalKey == LogicalKeyboardKey.mediaPlay) {
+              _mediaService.play();
+              return KeyEventResult.handled;
+            } else if (event.logicalKey == LogicalKeyboardKey.mediaPause) {
+              _mediaService.pause();
+              return KeyEventResult.handled;
+            } else if (event.logicalKey == LogicalKeyboardKey.mediaTrackNext) {
+              if (_hasNext) _playVideoAtIndex(_currentIndex + 1);
+              return KeyEventResult.handled;
+            } else if (event.logicalKey == LogicalKeyboardKey.mediaTrackPrevious) {
+              if (_hasPrevious) _playVideoAtIndex(_currentIndex - 1);
+              return KeyEventResult.handled;
+            }
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: _toggleControls,
         onDoubleTapDown: _onDoubleTapDown,
@@ -1310,110 +1426,212 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                       end: Alignment.bottomCenter,
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: () => Navigator.pop(context, _hasDeletedAny),
-                        child: const Icon(CupertinoIcons.chevron_back, color: Colors.white, size: 28),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _currentTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (_playlist.length > 1)
-                              Text(
-                                '${_currentIndex + 1} of ${_playlist.length}',
-                                style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isCompact = constraints.maxWidth < 600;
+                      final isRemote = widget.vfs is AeroLinkVfs ||
+                          (widget.vfs != null && widget.vfs is! LocalVfs) ||
+                          _currentPlaybackUri.startsWith('http://') ||
+                          _currentPlaybackUri.startsWith('https://');
+
+                      return Row(
+                        children: [
+                          CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            onPressed: () => Navigator.pop(context, _hasDeletedAny),
+                            child: const Icon(CupertinoIcons.chevron_back, color: Colors.white, size: 28),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _currentTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
+                                if (_playlist.length > 1)
+                                  Text(
+                                    '${_currentIndex + 1} of ${_playlist.length}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          // Rotate Screen Toggle Button
+                          IconButton(
+                            icon: Icon(
+                              _isLandscape ? CupertinoIcons.device_phone_portrait : CupertinoIcons.device_phone_landscape,
+                              color: Colors.white,
+                            ),
+                            tooltip: _isLandscape ? 'Switch to Portrait' : 'Switch to Landscape',
+                            onPressed: _toggleOrientation,
+                          ),
+                          // Aspect Ratio / Fit Mode Toggle Button
+                          IconButton(
+                            icon: Icon(
+                              _videoFit == BoxFit.contain
+                                  ? Icons.aspect_ratio
+                                  : _videoFit == BoxFit.cover
+                                      ? CupertinoIcons.arrow_up_left_arrow_down_right
+                                      : CupertinoIcons.arrow_left_right,
+                              color: Colors.white,
+                            ),
+                            tooltip: 'Aspect Ratio: $_fitLabel',
+                            onPressed: _toggleVideoFit,
+                          ),
+                          if (!isCompact) ...[
+                            // Wide screen / Landscape mode: Show all icon buttons
+                            IconButton(
+                              icon: const Icon(Icons.picture_in_picture_alt_rounded, color: Colors.white),
+                              tooltip: 'Picture-in-Picture',
+                              onPressed: _enterPipMode,
+                            ),
+                            IconButton(
+                              icon: const Icon(CupertinoIcons.captions_bubble, color: Colors.white),
+                              tooltip: 'Subtitles',
+                              onPressed: () => _showTrackSheet(isAudio: false),
+                            ),
+                            IconButton(
+                              icon: const Icon(CupertinoIcons.speaker_2, color: Colors.white),
+                              tooltip: 'Audio Tracks',
+                              onPressed: () => _showTrackSheet(isAudio: true),
+                            ),
+                            PopupMenuButton<double>(
+                              icon: const Icon(CupertinoIcons.speedometer, color: Colors.white),
+                              tooltip: 'Speed',
+                              color: AppleColors.darkElevated,
+                              onSelected: (speed) {
+                                setState(() => _playbackSpeed = speed);
+                                _mediaService.setRate(speed);
+                              },
+                              itemBuilder: (ctx) => [
+                                for (final s in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
+                                  PopupMenuItem(
+                                    value: s,
+                                    child: Text(
+                                      '${s}x',
+                                      style: TextStyle(
+                                        color: _playbackSpeed == s ? AppleColors.systemBlue : Colors.white,
+                                        fontWeight: _playbackSpeed == s ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                CupertinoIcons.trash,
+                                color: isRemote ? Colors.white38 : Colors.white,
                               ),
+                              tooltip: isRemote ? 'Remote files cannot be deleted' : 'Delete Video',
+                              onPressed: _confirmDeleteCurrentVideo,
+                            ),
+                          ] else ...[
+                            // Compact phone / Portrait: Clean "More" Menu preventing layout squashing
+                            PopupMenuButton<String>(
+                              icon: const Icon(CupertinoIcons.ellipsis_circle, color: Colors.white),
+                              tooltip: 'More options',
+                              color: AppleColors.darkElevated,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              onSelected: (val) {
+                                switch (val) {
+                                  case 'pip':
+                                    _enterPipMode();
+                                    break;
+                                  case 'subtitles':
+                                    _showTrackSheet(isAudio: false);
+                                    break;
+                                  case 'audio':
+                                    _showTrackSheet(isAudio: true);
+                                    break;
+                                  case 'speed':
+                                    _showSpeedSelector();
+                                    break;
+                                  case 'delete':
+                                    _confirmDeleteCurrentVideo();
+                                    break;
+                                }
+                              },
+                              itemBuilder: (ctx) => [
+                                const PopupMenuItem(
+                                  value: 'pip',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.picture_in_picture_alt_rounded, color: Colors.white, size: 20),
+                                      SizedBox(width: 12),
+                                      Text('Picture-in-Picture', style: TextStyle(color: Colors.white)),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'subtitles',
+                                  child: Row(
+                                    children: [
+                                      Icon(CupertinoIcons.captions_bubble, color: Colors.white, size: 20),
+                                      SizedBox(width: 12),
+                                      Text('Subtitles', style: TextStyle(color: Colors.white)),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'audio',
+                                  child: Row(
+                                    children: [
+                                      Icon(CupertinoIcons.speaker_2, color: Colors.white, size: 20),
+                                      SizedBox(width: 12),
+                                      Text('Audio Tracks', style: TextStyle(color: Colors.white)),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'speed',
+                                  child: Row(
+                                    children: [
+                                      const Icon(CupertinoIcons.speedometer, color: Colors.white, size: 20),
+                                      const SizedBox(width: 12),
+                                      Text('Speed (${_playbackSpeed}x)', style: const TextStyle(color: Colors.white)),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        CupertinoIcons.trash,
+                                        color: isRemote ? Colors.grey : AppleColors.systemRed,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        isRemote ? 'Delete (Read-only)' : 'Delete Video',
+                                        style: TextStyle(
+                                          color: isRemote ? Colors.grey : AppleColors.systemRed,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
-                        ),
-                      ),
-                      // Rotate Screen Toggle Button
-                      IconButton(
-                        icon: Icon(
-                          _isLandscape ? CupertinoIcons.device_phone_portrait : CupertinoIcons.device_phone_landscape,
-                          color: Colors.white,
-                        ),
-                        tooltip: _isLandscape ? 'Switch to Portrait' : 'Switch to Landscape',
-                        onPressed: _toggleOrientation,
-                      ),
-                      // Aspect Ratio / Fit Mode Toggle Button
-                      IconButton(
-                        icon: Icon(
-                          _videoFit == BoxFit.contain
-                              ? Icons.aspect_ratio
-                              : _videoFit == BoxFit.cover
-                                  ? CupertinoIcons.arrow_up_left_arrow_down_right
-                                  : CupertinoIcons.arrow_left_right,
-                          color: Colors.white,
-                        ),
-                        tooltip: 'Aspect Ratio: $_fitLabel',
-                        onPressed: _toggleVideoFit,
-                      ),
-                      // Picture-in-Picture Button
-                      IconButton(
-                        icon: const Icon(Icons.picture_in_picture_alt_rounded, color: Colors.white),
-                        tooltip: 'Picture-in-Picture',
-                        onPressed: _enterPipMode,
-                      ),
-                      // Subtitles
-                      IconButton(
-                        icon: const Icon(CupertinoIcons.captions_bubble, color: Colors.white),
-                        tooltip: 'Subtitles',
-                        onPressed: () => _showTrackSheet(isAudio: false),
-                      ),
-                      // Audio Track
-                      IconButton(
-                        icon: const Icon(CupertinoIcons.speaker_2, color: Colors.white),
-                        tooltip: 'Audio Tracks',
-                        onPressed: () => _showTrackSheet(isAudio: true),
-                      ),
-                      // Playback Speed
-                      PopupMenuButton<double>(
-                        icon: const Icon(CupertinoIcons.speedometer, color: Colors.white),
-                        tooltip: 'Speed',
-                        color: AppleColors.darkElevated,
-                        onSelected: (speed) {
-                          setState(() => _playbackSpeed = speed);
-                          _mediaService.setRate(speed);
-                        },
-                        itemBuilder: (ctx) => [
-                          for (final s in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
-                            PopupMenuItem(
-                              value: s,
-                              child: Text(
-                                '${s}x',
-                                style: TextStyle(
-                                  color: _playbackSpeed == s ? AppleColors.systemBlue : Colors.white,
-                                  fontWeight: _playbackSpeed == s ? FontWeight.bold : FontWeight.normal,
-                                ),
-                              ),
-                            ),
                         ],
-                      ),
-                      // Delete Current Video Button
-                      IconButton(
-                        icon: const Icon(CupertinoIcons.trash, color: Colors.white),
-                        tooltip: 'Delete Video',
-                        onPressed: _confirmDeleteCurrentVideo,
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -1576,6 +1794,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
           ],
         ),
       ),
+    ),
     ),
   );
 }

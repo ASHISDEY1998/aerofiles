@@ -543,10 +543,26 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
 
     if (mounted) {
       if (moveToTrash) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${selected.length} item${selected.length == 1 ? '' : 's'} moved to Recycle Bin'),
+            behavior: SnackBarBehavior.floating,
+            dismissDirection: DismissDirection.down,
             duration: const Duration(seconds: 4),
+            content: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragEnd: (details) {
+                if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                }
+              },
+              onVerticalDragUpdate: (details) {
+                if (details.delta.dy > 3) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                }
+              },
+              child: Text('${selected.length} item${selected.length == 1 ? '' : 's'} moved to Recycle Bin'),
+            ),
             action: SnackBarAction(
               label: 'Undo',
               textColor: AppleColors.systemBlue,
@@ -561,8 +577,11 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                   }
                   setState(() => _currentItems = existing);
                   if (!mounted) return;
+                  ScaffoldMessenger.of(context).removeCurrentSnackBar();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
+                      behavior: SnackBarBehavior.floating,
+                      dismissDirection: DismissDirection.down,
                       content: Text('Restored $restored item${restored == 1 ? '' : 's'}'),
                       duration: const Duration(seconds: 2),
                     ),

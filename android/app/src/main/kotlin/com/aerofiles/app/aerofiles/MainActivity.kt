@@ -581,4 +581,43 @@ class MainActivity : FlutterFragmentActivity() {
         stopTransferNotification()
         super.onDestroy()
     }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_HEADSETHOOK,
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                    runOnUiThread {
+                        methodChannel?.invokeMethod("onMediaPlayPause", null)
+                    }
+                    return true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                    runOnUiThread {
+                        methodChannel?.invokeMethod("onMediaPlay", null)
+                    }
+                    return true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                    runOnUiThread {
+                        methodChannel?.invokeMethod("onMediaPause", null)
+                    }
+                    return true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                    runOnUiThread {
+                        methodChannel?.invokeMethod("onMediaNext", null)
+                    }
+                    return true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                    runOnUiThread {
+                        methodChannel?.invokeMethod("onMediaPrevious", null)
+                    }
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
 }
