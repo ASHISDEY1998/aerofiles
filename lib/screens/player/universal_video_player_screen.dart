@@ -36,6 +36,15 @@ class UniversalVideoPlayerScreen extends StatefulWidget {
   State<UniversalVideoPlayerScreen> createState() => _UniversalVideoPlayerScreenState();
 }
 
+enum _PlayerGestureMode {
+  none,
+  pinchZoom,
+  panZoomed,
+  seeking,
+  brightness,
+  volume,
+}
+
 class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen> {
   late final MediaPlayerService _mediaService;
   late List<VfsNode> _playlist;
@@ -59,6 +68,16 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   bool _showFitHudIndicator = false;
   Timer? _fitHudTimer;
 
+  // Pinch-to-zoom & pan gestures
+  double _scale = 1.0;
+  double _baseScale = 1.0;
+  Offset _panOffset = Offset.zero;
+  Offset _startFocalPoint = Offset.zero;
+  Offset _accumulatedDelta = Offset.zero;
+  bool _showZoomHud = false;
+  Timer? _zoomHudTimer;
+  _PlayerGestureMode _gestureMode = _PlayerGestureMode.none;
+
   // Horizontal seek gestures (Smooth seeking without middle preview box)
   Duration _dragStartPosition = Duration.zero;
   Duration _targetSeekPosition = Duration.zero;
@@ -70,8 +89,6 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   bool _isAdjustingBrightness = false;
   bool _isAdjustingVolume = false;
   Timer? _hideVerticalHudTimer;
-  double _verticalDragStartY = 0.0;
-  double _verticalDragStartValue = 0.0;
 
   // Playback Resume
   int _savedResumeSeconds = 0;
@@ -187,6 +204,8 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
 
   void _toggleVideoFit() {
     setState(() {
+      _scale = 1.0;
+      _panOffset = Offset.zero;
       if (_videoFit == BoxFit.contain) {
         _videoFit = BoxFit.cover;
         _fitLabel = 'Crop to Fill';
@@ -261,6 +280,8 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       _currentTitle = node.name;
       _isSwitchingVideo = true;
       _showResumeBanner = false;
+      _scale = 1.0;
+      _panOffset = Offset.zero;
     });
 
     try {
@@ -285,66 +306,124 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     }
   }
 
-  // Horizontal seek gestures: seeks directly without center popup timeline card
-  void _onHorizontalDragStart(DragStartDetails details) {
+  // Unified gestures: Pinch-to-zoom (2 fingers), Pan when zoomed, Horizontal seek, Left vertical brightness, Right vertical volume
+  void _onScaleStart(ScaleStartDetails details) {
     _hideTimer?.cancel();
+    _zoomHudTimer?.cancel();
+    _hideVerticalHudTimer?.cancel();
+
+    _startFocalPoint = details.localFocalPoint;
+    _accumulatedDelta = Offset.zero;
+    _baseScale = _scale;
     _dragStartPosition = _mediaService.player.state.position;
     _targetSeekPosition = _dragStartPosition;
     _dragAccumulatedDx = 0.0;
-  }
 
-  void _onHorizontalDragUpdate(DragUpdateDetails details) {
-    _dragAccumulatedDx += details.primaryDelta ?? 0.0;
-
-    // 1 physical pixel = 0.35s seek delta
-    final deltaSec = (_dragAccumulatedDx * 0.35).round();
-    final totalDuration = _mediaService.player.state.duration;
-
-    final newPosSec = (_dragStartPosition.inSeconds + deltaSec).clamp(
-      0,
-      totalDuration.inSeconds > 0 ? totalDuration.inSeconds : 0,
-    );
-
-    _targetSeekPosition = Duration(seconds: newPosSec);
-    _mediaService.player.seek(_targetSeekPosition);
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) {
-    _mediaService.player.seek(_targetSeekPosition);
-    _startHideTimer();
-  }
-
-  // Vertical drag gestures: Left side = Brightness, Right side = Volume
-  void _onVerticalDragStart(DragStartDetails details) {
-    _hideTimer?.cancel();
-    _hideVerticalHudTimer?.cancel();
-    final screenWidth = MediaQuery.of(context).size.width;
-    _verticalDragStartY = details.localPosition.dy;
-
-    if (details.localPosition.dx < screenWidth / 2) {
-      _isAdjustingBrightness = true;
-      _isAdjustingVolume = false;
-      _verticalDragStartValue = _brightness;
-    } else {
-      _isAdjustingVolume = true;
+    if (details.pointerCount >= 2) {
+      _gestureMode = _PlayerGestureMode.pinchZoom;
       _isAdjustingBrightness = false;
-      _verticalDragStartValue = _volume;
+      _isAdjustingVolume = false;
+      _showZoomHud = true;
+      setState(() {});
+    } else {
+      _gestureMode = _PlayerGestureMode.none;
     }
-    setState(() {});
   }
 
-  void _onVerticalDragUpdate(DragUpdateDetails details) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final deltaY = _verticalDragStartY - details.localPosition.dy;
-    final deltaFraction = deltaY / (screenHeight * 0.7);
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (details.pointerCount >= 2) {
+      // Two fingers: Pinch-to-zoom
+      _gestureMode = _PlayerGestureMode.pinchZoom;
+      _isAdjustingBrightness = false;
+      _isAdjustingVolume = false;
 
-    if (_isAdjustingBrightness) {
-      final newBrightness = (_verticalDragStartValue + deltaFraction).clamp(0.1, 1.0);
+      final targetScale = (_baseScale * details.scale).clamp(1.0, 5.0);
+      final size = MediaQuery.of(context).size;
+      final maxPanX = (size.width * (targetScale - 1.0)) / 2;
+      final maxPanY = (size.height * (targetScale - 1.0)) / 2;
+
+      Offset newPan = _panOffset + details.focalPointDelta;
+      if (targetScale <= 1.0) {
+        newPan = Offset.zero;
+      } else {
+        newPan = Offset(
+          newPan.dx.clamp(-maxPanX, maxPanX),
+          newPan.dy.clamp(-maxPanY, maxPanY),
+        );
+      }
+
+      setState(() {
+        _scale = targetScale;
+        _panOffset = newPan;
+        _showZoomHud = true;
+      });
+      return;
+    }
+
+    // Single finger:
+    if (_scale > 1.05) {
+      // When zoomed in, 1 finger pans around video frame
+      _gestureMode = _PlayerGestureMode.panZoomed;
+      final size = MediaQuery.of(context).size;
+      final maxPanX = (size.width * (_scale - 1.0)) / 2;
+      final maxPanY = (size.height * (_scale - 1.0)) / 2;
+      final newPan = _panOffset + details.focalPointDelta;
+
+      setState(() {
+        _panOffset = Offset(
+          newPan.dx.clamp(-maxPanX, maxPanX),
+          newPan.dy.clamp(-maxPanY, maxPanY),
+        );
+      });
+      return;
+    }
+
+    // Normal scale (<= 1.05): single-finger gestures (Seek, Brightness, Volume)
+    if (_gestureMode == _PlayerGestureMode.none) {
+      _accumulatedDelta += details.focalPointDelta;
+      if (_accumulatedDelta.distance < 8.0) return; // Prevent jitter before gesture direction locked
+
+      if (_accumulatedDelta.dx.abs() > _accumulatedDelta.dy.abs()) {
+        _gestureMode = _PlayerGestureMode.seeking;
+        _dragStartPosition = _mediaService.player.state.position;
+        _targetSeekPosition = _dragStartPosition;
+        _dragAccumulatedDx = 0.0;
+      } else {
+        final screenWidth = MediaQuery.of(context).size.width;
+        if (_startFocalPoint.dx < screenWidth * 0.5) {
+          _gestureMode = _PlayerGestureMode.brightness;
+          _isAdjustingBrightness = true;
+          _isAdjustingVolume = false;
+        } else {
+          _gestureMode = _PlayerGestureMode.volume;
+          _isAdjustingVolume = true;
+          _isAdjustingBrightness = false;
+        }
+        setState(() {});
+      }
+    }
+
+    if (_gestureMode == _PlayerGestureMode.seeking) {
+      _dragAccumulatedDx += details.focalPointDelta.dx;
+      final deltaSec = (_dragAccumulatedDx * 0.35).round();
+      final totalDuration = _mediaService.player.state.duration;
+      final newPosSec = (_dragStartPosition.inSeconds + deltaSec).clamp(
+        0,
+        totalDuration.inSeconds > 0 ? totalDuration.inSeconds : 0,
+      );
+      _targetSeekPosition = Duration(seconds: newPosSec);
+      _mediaService.player.seek(_targetSeekPosition);
+    } else if (_gestureMode == _PlayerGestureMode.brightness) {
+      final screenHeight = MediaQuery.of(context).size.height;
+      final deltaFraction = -details.focalPointDelta.dy / (screenHeight * 0.7);
+      final newBrightness = (_brightness + deltaFraction).clamp(0.1, 1.0);
       setState(() {
         _brightness = newBrightness;
       });
-    } else if (_isAdjustingVolume) {
-      final newVolume = (_verticalDragStartValue + (deltaFraction * 100.0)).clamp(0.0, 100.0);
+    } else if (_gestureMode == _PlayerGestureMode.volume) {
+      final screenHeight = MediaQuery.of(context).size.height;
+      final deltaFraction = -details.focalPointDelta.dy / (screenHeight * 0.7);
+      final newVolume = (_volume + (deltaFraction * 100.0)).clamp(0.0, 100.0);
       setState(() {
         _volume = newVolume;
       });
@@ -352,16 +431,39 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     }
   }
 
-  void _onVerticalDragEnd(DragEndDetails details) {
-    _hideVerticalHudTimer = Timer(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        setState(() {
-          _isAdjustingBrightness = false;
-          _isAdjustingVolume = false;
-        });
-        _startHideTimer();
-      }
-    });
+  void _onScaleEnd(ScaleEndDetails details) {
+    if (_scale <= 1.05) {
+      setState(() {
+        _scale = 1.0;
+        _panOffset = Offset.zero;
+      });
+    }
+
+    if (_gestureMode == _PlayerGestureMode.pinchZoom) {
+      _zoomHudTimer?.cancel();
+      _zoomHudTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted) setState(() => _showZoomHud = false);
+      });
+      _startHideTimer();
+    } else if (_gestureMode == _PlayerGestureMode.seeking) {
+      _mediaService.player.seek(_targetSeekPosition);
+      _startHideTimer();
+    } else if (_gestureMode == _PlayerGestureMode.brightness || _gestureMode == _PlayerGestureMode.volume) {
+      _hideVerticalHudTimer?.cancel();
+      _hideVerticalHudTimer = Timer(const Duration(milliseconds: 1200), () {
+        if (mounted) {
+          setState(() {
+            _isAdjustingBrightness = false;
+            _isAdjustingVolume = false;
+          });
+          _startHideTimer();
+        }
+      });
+    } else {
+      _startHideTimer();
+    }
+
+    _gestureMode = _PlayerGestureMode.none;
   }
 
   // Delete Video Actions with identical Apple confirmation popup
@@ -672,6 +774,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     _hideTimer?.cancel();
     _hideVerticalHudTimer?.cancel();
     _fitHudTimer?.cancel();
+    _zoomHudTimer?.cancel();
     _completedSubscription?.cancel();
     _positionSubscription?.cancel();
     _videoParamsSubscription?.cancel();
@@ -732,6 +835,21 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     final currentPos = _mediaService.player.state.position;
     final totalDuration = _mediaService.player.state.duration;
 
+    // Double-tap while zoomed in instantly resets zoom back to 100%
+    if (_scale > 1.05) {
+      setState(() {
+        _scale = 1.0;
+        _panOffset = Offset.zero;
+        _showZoomHud = true;
+      });
+      _zoomHudTimer?.cancel();
+      _zoomHudTimer = Timer(const Duration(milliseconds: 1200), () {
+        if (mounted) setState(() => _showZoomHud = false);
+      });
+      HapticFeedback.mediumImpact();
+      return;
+    }
+
     if (dx < screenWidth * 0.35) {
       // Seek Backward 10s
       final target = currentPos - const Duration(seconds: 10);
@@ -769,7 +887,11 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
 
   Future<void> _enterPipMode() async {
     try {
-      setState(() => _showControls = false);
+      setState(() {
+        _showControls = false;
+        _scale = 1.0;
+        _panOffset = Offset.zero;
+      });
       const channel = MethodChannel('com.aerofiles.app/storage');
       final entered = await channel.invokeMethod<bool>('enterPipMode');
       if (entered != true && mounted) {
@@ -1099,23 +1221,31 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
         onTap: _toggleControls,
         onDoubleTapDown: _onDoubleTapDown,
         onDoubleTap: () {},
-        onHorizontalDragStart: _onHorizontalDragStart,
-        onHorizontalDragUpdate: _onHorizontalDragUpdate,
-        onHorizontalDragEnd: _onHorizontalDragEnd,
-        onVerticalDragStart: _onVerticalDragStart,
-        onVerticalDragUpdate: _onVerticalDragUpdate,
-        onVerticalDragEnd: _onVerticalDragEnd,
+        onScaleStart: _onScaleStart,
+        onScaleUpdate: _onScaleUpdate,
+        onScaleEnd: _onScaleEnd,
         behavior: HitTestBehavior.opaque,
         child: Stack(
           children: [
-            // Video Output
+            // Video Output with Pinch-to-Zoom & Pan
             Center(
-              child: Video(
-                controller: _mediaService.controller,
-                width: double.infinity,
-                height: double.infinity,
-                fit: _videoFit,
-                controls: NoVideoControls,
+              child: ClipRect(
+                child: Transform(
+                  alignment: Alignment.center,
+                  // ignore: deprecated_member_use
+                  transform: Matrix4.identity()
+                    // ignore: deprecated_member_use
+                    ..translate(_panOffset.dx, _panOffset.dy)
+                    // ignore: deprecated_member_use
+                    ..scale(_scale),
+                  child: Video(
+                    controller: _mediaService.controller,
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: _videoFit,
+                    controls: NoVideoControls,
+                  ),
+                ),
               ),
             ),
 
@@ -1245,6 +1375,51 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                 child: CupertinoActivityIndicator(
                   radius: 20,
                   color: AppleColors.systemBlue,
+                ),
+              ),
+
+            // Pinch-to-zoom HUD Indicator Overlay
+            if (_showZoomHud)
+              Positioned(
+                top: 72,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xD9000000),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white24, width: 0.8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _scale > 1.05 ? CupertinoIcons.zoom_in : CupertinoIcons.zoom_out,
+                          color: AppleColors.systemBlue,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _scale <= 1.02 ? 'Zoom: 100%' : 'Zoom: ${(_scale * 100).toInt()}%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
 

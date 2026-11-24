@@ -691,7 +691,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           showLicensePage(
                             context: context,
                             applicationName: 'AeroFiles',
-                            applicationVersion: '2.1.4',
+                            applicationVersion: '2.1.5',
                           );
                         },
                         isDark: isDark,
@@ -702,8 +702,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         trailing: FutureBuilder<PackageInfo>(
                           future: PackageInfo.fromPlatform(),
                           builder: (context, snapshot) {
-                            final version = snapshot.hasData ? snapshot.data!.version : '2.1.4';
-                            final build = snapshot.hasData ? snapshot.data!.buildNumber : '21';
+                            final version = snapshot.hasData ? snapshot.data!.version : '2.1.5';
+                            final build = snapshot.hasData ? snapshot.data!.buildNumber : '22';
                             return Text(
                               '$version (Build $build)',
                               style: TextStyle(
