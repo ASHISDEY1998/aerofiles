@@ -4,12 +4,14 @@ class AeroLinkShare {
   final String name;
   final String localPath;
   final DateTime addedAt;
+  final bool isFile;
 
   AeroLinkShare({
     required this.id,
     required this.name,
     required this.localPath,
     required this.addedAt,
+    this.isFile = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -17,6 +19,7 @@ class AeroLinkShare {
         'name': name,
         'localPath': localPath,
         'addedAt': addedAt.toIso8601String(),
+        'isFile': isFile,
       };
 
   factory AeroLinkShare.fromJson(Map<String, dynamic> json) => AeroLinkShare(
@@ -24,6 +27,7 @@ class AeroLinkShare {
         name: json['name'] as String? ?? '',
         localPath: json['localPath'] as String? ?? '',
         addedAt: DateTime.tryParse(json['addedAt'] as String? ?? '') ?? DateTime.now(),
+        isFile: (json['isFile'] as bool?) ?? false,
       );
 }
 

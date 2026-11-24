@@ -50,14 +50,16 @@ class AeroLinkVfs implements VfsProvider {
             final id = item['id'] as String? ?? '';
             final name = item['name'] as String? ?? 'Shared Folder';
             final itemCount = (item['itemCount'] as int?) ?? 0;
+            final isFile = (item['isFile'] as bool?) ?? false;
+            final size = (item['size'] as int?) ?? (itemCount * 1024);
             _shareNameToId[name] = id;
 
             nodes.add(
               VfsNode(
                 path: '/$name',
                 name: name,
-                size: itemCount * 1024,
-                isDirectory: true,
+                size: size,
+                isDirectory: !isFile,
                 modified: DateTime.now(),
                 remoteStorageId: providerId,
               ),

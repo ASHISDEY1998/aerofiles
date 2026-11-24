@@ -142,22 +142,50 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
 
   void _showAddFolderPicker() {
     final root = widget.localVfs.rootPath;
-    final candidates = [
+    final quickFolders = [
       {'name': 'Movies', 'path': p.join(root, 'Movies')},
       {'name': 'Download', 'path': p.join(root, 'Download')},
       {'name': 'Pictures', 'path': p.join(root, 'Pictures')},
       {'name': 'DCIM (Camera)', 'path': p.join(root, 'DCIM')},
-      {'name': 'Music', 'path': p.join(root, 'Music')},
       {'name': 'Documents', 'path': p.join(root, 'Documents')},
+      {'name': 'Music', 'path': p.join(root, 'Music')},
     ];
 
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: const Text('Select a Folder to Share Privately'),
-        message: const Text('Only paired AeroFiles devices will be able to stream from this folder.'),
+        title: const Text('Add Shared Folder or File'),
+        message: const Text('Share any folder or individual file on your device with other AeroFiles devices.'),
         actions: [
-          for (final c in candidates)
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openStoragePicker(AeroLinkPickerMode.folder);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(CupertinoIcons.folder_badge_plus, size: 18, color: AppleColors.systemBlue),
+                SizedBox(width: 8),
+                Text('Browse & Pick Any Folder...', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openStoragePicker(AeroLinkPickerMode.file);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(CupertinoIcons.doc_fill, size: 18, color: AppleColors.systemGreen),
+                SizedBox(width: 8),
+                Text('Browse & Pick Any File...', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          for (final c in quickFolders)
             CupertinoActionSheetAction(
               onPressed: () {
                 Navigator.pop(ctx);
@@ -173,7 +201,7 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(CupertinoIcons.folder_badge_plus, size: 18),
+                  const Icon(CupertinoIcons.folder, size: 16),
                   const SizedBox(width: 8),
                   Text(c['name']!),
                 ],
@@ -186,6 +214,22 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
         ),
       ),
     );
+  }
+
+  void _openStoragePicker(AeroLinkPickerMode mode) {
+    showCupertinoModalPopup<String>(
+      context: context,
+      builder: (_) => AeroLinkStoragePickerModal(
+        localVfs: widget.localVfs,
+        mode: mode,
+      ),
+    ).then((selectedPath) {
+      if (selectedPath != null && selectedPath.isNotEmpty) {
+        final name = p.basename(selectedPath);
+        _service.addShare(name: name, localPath: selectedPath);
+        if (mounted) setState(() {});
+      }
+    });
   }
 
   void _promptEditDeviceName() {
@@ -544,12 +588,12 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                   ),
                   const SizedBox(height: 18),
 
-                  // 3. Shared Folders Section
+                  // 3. Shared Folders & Files Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'SHARED FOLDERS (${shares.length})',
+                        'SHARED ITEMS (${shares.length})',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -565,7 +609,7 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                           children: [
                             Icon(CupertinoIcons.plus_circle_fill, size: 16, color: AppleColors.systemBlue),
                             SizedBox(width: 4),
-                            Text('Add Folder', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppleColors.systemBlue)),
+                            Text('Add Item', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppleColors.systemBlue)),
                           ],
                         ),
                       ),
@@ -583,7 +627,7 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                       ),
                       child: Center(
                         child: Text(
-                          'No folders shared yet. Tap "+ Add Folder" to designate directories for remote streaming.',
+                          'No items shared yet. Tap "+ Add Item" to select any folder or file to share.',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 13, color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight),
                         ),
@@ -601,28 +645,57 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                         child: Row(
                           children: [
                             Container(
-                              width: 34,
-                              height: 34,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
-                                color: AppleColors.systemBlue.withValues(alpha: 0.15),
+                                color: (s.isFile ? AppleColors.systemGreen : AppleColors.systemBlue).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               alignment: Alignment.center,
-                              child: const Icon(CupertinoIcons.folder_fill, color: AppleColors.systemBlue, size: 20),
+                              child: Icon(
+                                s.isFile ? CupertinoIcons.doc_fill : CupertinoIcons.folder_fill,
+                                color: s.isFile ? AppleColors.systemGreen : AppleColors.systemBlue,
+                                size: 20,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    s.name,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: isDark ? Colors.white : AppleColors.textPrimaryLight,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          s.name,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                            color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: (s.isFile ? AppleColors.systemGreen : AppleColors.systemBlue).withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          s.isFile ? 'FILE' : 'FOLDER',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: s.isFile ? AppleColors.systemGreen : AppleColors.systemBlue,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                  const SizedBox(height: 2),
                                   Text(
                                     s.localPath,
                                     style: TextStyle(
@@ -662,6 +735,313 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum AeroLinkPickerMode { folder, file }
+
+class AeroLinkStoragePickerModal extends StatefulWidget {
+  final LocalVfs localVfs;
+  final AeroLinkPickerMode mode;
+
+  const AeroLinkStoragePickerModal({
+    super.key,
+    required this.localVfs,
+    required this.mode,
+  });
+
+  @override
+  State<AeroLinkStoragePickerModal> createState() => _AeroLinkStoragePickerModalState();
+}
+
+class _AeroLinkStoragePickerModalState extends State<AeroLinkStoragePickerModal> {
+  late String _currentPath;
+  List<FileSystemEntity> _entries = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPath = widget.localVfs.rootPath;
+    _loadDirectory();
+  }
+
+  void _loadDirectory() {
+    setState(() => _isLoading = true);
+    try {
+      final dir = Directory(_currentPath);
+      if (dir.existsSync()) {
+        final list = dir.listSync(followLinks: false);
+        final visible = list.where((e) => !p.basename(e.path).startsWith('.')).toList();
+        visible.sort((a, b) {
+          final isADir = a is Directory;
+          final isBDir = b is Directory;
+          if (isADir && !isBDir) return -1;
+          if (!isADir && isBDir) return 1;
+          return p.basename(a.path).toLowerCase().compareTo(p.basename(b.path).toLowerCase());
+        });
+        _entries = visible;
+      } else {
+        _entries = [];
+      }
+    } catch (_) {
+      _entries = [];
+    }
+    setState(() => _isLoading = false);
+  }
+
+  void _navigateUp() {
+    final parent = p.dirname(_currentPath);
+    if (parent.startsWith(widget.localVfs.rootPath) || parent == widget.localVfs.rootPath) {
+      _currentPath = parent;
+      _loadDirectory();
+    }
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  IconData _getFileIcon(String ext) {
+    switch (ext.toLowerCase()) {
+      case '.mp4':
+      case '.mkv':
+      case '.mov':
+      case '.avi':
+      case '.webm':
+        return CupertinoIcons.film_fill;
+      case '.mp3':
+      case '.flac':
+      case '.m4a':
+      case '.wav':
+      case '.aac':
+        return CupertinoIcons.music_note_2;
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.webp':
+      case '.gif':
+        return CupertinoIcons.photo_fill;
+      case '.pdf':
+      case '.doc':
+      case '.docx':
+      case '.txt':
+        return CupertinoIcons.doc_text_fill;
+      case '.zip':
+      case '.rar':
+      case '.7z':
+      case '.tar':
+      case '.gz':
+        return CupertinoIcons.archivebox_fill;
+      case '.apk':
+        return CupertinoIcons.app_badge_fill;
+      default:
+        return CupertinoIcons.doc_fill;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final canGoUp = _currentPath != widget.localVfs.rootPath && _currentPath.startsWith(widget.localVfs.rootPath);
+    final title = widget.mode == AeroLinkPickerMode.folder ? 'Select Folder to Share' : 'Select File to Share';
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 580, maxHeight: 650),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          child: Material(
+            color: Colors.transparent,
+            child: Column(
+              children: [
+                // Top Header Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        if (canGoUp)
+                          CupertinoButton(
+                            padding: const EdgeInsets.only(right: 8),
+                            minimumSize: Size.zero,
+                            onPressed: _navigateUp,
+                            child: const Row(
+                              children: [
+                                Icon(CupertinoIcons.chevron_left, size: 18),
+                                Text('Up', style: TextStyle(fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        Text(
+                          title,
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Current Path Breadcrumb Bar
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(CupertinoIcons.folder, size: 14, color: AppleColors.systemBlue),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _currentPath,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                            color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Entity list
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CupertinoActivityIndicator(radius: 12))
+                      : _entries.isEmpty
+                          ? Center(
+                              child: Text(
+                                'This folder is empty.',
+                                style: TextStyle(color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: _entries.length,
+                              itemBuilder: (ctx, i) {
+                                final e = _entries[i];
+                                final isDir = e is Directory;
+                                final name = p.basename(e.path);
+
+                                if (isDir) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF2C2C2E).withValues(alpha: 0.5) : const Color(0xFFF2F2F7).withValues(alpha: 0.6),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: ListTile(
+                                      dense: true,
+                                      leading: const Icon(CupertinoIcons.folder_fill, color: AppleColors.systemBlue, size: 24),
+                                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                      trailing: widget.mode == AeroLinkPickerMode.folder
+                                          ? CupertinoButton(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              minimumSize: Size.zero,
+                                              color: AppleColors.systemBlue,
+                                              borderRadius: BorderRadius.circular(8),
+                                              onPressed: () => Navigator.pop(context, e.path),
+                                              child: const Text('Share', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                                            )
+                                          : const Icon(CupertinoIcons.chevron_right, size: 14),
+                                      onTap: () {
+                                        _currentPath = e.path;
+                                        _loadDirectory();
+                                      },
+                                    ),
+                                  );
+                                } else {
+                                  // File entity
+                                  int size = 0;
+                                  try {
+                                    size = (e as File).lengthSync();
+                                  } catch (_) {}
+                                  final ext = p.extension(e.path);
+                                  final icon = _getFileIcon(ext);
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF2C2C2E).withValues(alpha: 0.4) : const Color(0xFFF2F2F7).withValues(alpha: 0.4),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: ListTile(
+                                      dense: true,
+                                      enabled: widget.mode == AeroLinkPickerMode.file,
+                                      leading: Icon(icon, color: AppleColors.systemGreen, size: 22),
+                                      title: Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                                      subtitle: Text(_formatSize(size), style: const TextStyle(fontSize: 11, color: AppleColors.textSecondary)),
+                                      trailing: widget.mode == AeroLinkPickerMode.file
+                                          ? CupertinoButton(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              minimumSize: Size.zero,
+                                              color: AppleColors.systemGreen,
+                                              borderRadius: BorderRadius.circular(8),
+                                              onPressed: () => Navigator.pop(context, e.path),
+                                              child: const Text('Share', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                                            )
+                                          : null,
+                                      onTap: widget.mode == AeroLinkPickerMode.file
+                                          ? () => Navigator.pop(context, e.path)
+                                          : null,
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                ),
+
+                // Bottom Action for Folder Mode: "Share Current Folder"
+                if (widget.mode == AeroLinkPickerMode.folder) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: CupertinoButton(
+                      color: AppleColors.systemBlue,
+                      borderRadius: BorderRadius.circular(12),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      onPressed: () => Navigator.pop(context, _currentPath),
+                      child: Text(
+                        'Share This Folder ("${p.basename(_currentPath)}")',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),

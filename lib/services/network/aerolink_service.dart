@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:mime/mime.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:path/path.dart' as p;
@@ -118,6 +119,21 @@ class AeroLinkService {
       } catch (_) {}
     }
 
+    // 6. Restore Known Devices (Persisted so they never disappear)
+    final knownJson = _prefs.getString('aerolink_known_devices_json') ?? '';
+    if (knownJson.isNotEmpty) {
+      try {
+        final list = (jsonDecode(knownJson) as List<dynamic>?) ?? [];
+        final devices = list.map((item) {
+          final dev = AeroLinkDevice.fromJson(item as Map<String, dynamic>);
+          dev.isOnline = false; // Initially marked offline until ping/beacon verifies
+          dev.authToken = _remoteAuthTokens[dev.deviceId];
+          return dev;
+        }).toList();
+        nearbyDevices.value = devices;
+      } catch (_) {}
+    }
+
     _isInitialized = true;
 
     // Start background receiver for peer discovery
@@ -138,8 +154,11 @@ class AeroLinkService {
     await _prefs.setString('aerolink_pairing_pin', _pairingPin);
   }
 
-  Future<void> addShare({required String name, required String localPath}) async {
-    if (!Directory(localPath).existsSync()) return;
+  Future<bool> addShare({required String name, required String localPath}) async {
+    final isDir = Directory(localPath).existsSync();
+    final isFile = File(localPath).existsSync();
+    if (!isDir && !isFile) return false;
+
     _sharedFolders.removeWhere((s) => s.localPath == localPath);
     _sharedFolders.add(
       AeroLinkShare(
@@ -147,9 +166,11 @@ class AeroLinkService {
         name: name,
         localPath: localPath,
         addedAt: DateTime.now(),
+        isFile: isFile,
       ),
     );
     await _saveShares();
+    return true;
   }
 
   Future<void> removeShare(String id) async {
@@ -266,18 +287,30 @@ class AeroLinkService {
         return;
       }
 
-      // 4. List Shared Folders
+      // 4. List Shared Folders & Files
       if (path == '/aerolink/shares') {
         final list = _sharedFolders.map((s) {
+          final isFile = s.isFile || File(s.localPath).existsSync();
           int count = 0;
-          try {
-            final dir = Directory(s.localPath);
-            if (dir.existsSync()) count = dir.listSync().length;
-          } catch (_) {}
+          int size = 0;
+          if (isFile) {
+            try {
+              final f = File(s.localPath);
+              if (f.existsSync()) size = f.lengthSync();
+            } catch (_) {}
+            count = 1;
+          } else {
+            try {
+              final dir = Directory(s.localPath);
+              if (dir.existsSync()) count = dir.listSync().length;
+            } catch (_) {}
+          }
           return {
             'id': s.id,
             'name': s.name,
             'itemCount': count,
+            'isFile': isFile,
+            'size': size,
           };
         }).toList();
 
@@ -287,7 +320,7 @@ class AeroLinkService {
         return;
       }
 
-      // 5. Browse inside a shared folder
+      // 5. Browse inside a shared folder or inspect file
       if (path == '/aerolink/browse') {
         final shareId = request.uri.queryParameters['shareId'] ?? '';
         final subpath = request.uri.queryParameters['subpath'] ?? '';
@@ -296,6 +329,25 @@ class AeroLinkService {
           (s) => s.id == shareId || s.name == shareId,
           orElse: () => throw Exception('Share not found'),
         );
+
+        final isFile = share.isFile || File(share.localPath).existsSync();
+        if (isFile) {
+          final file = File(share.localPath);
+          final stat = file.statSync();
+          final items = [
+            {
+              'name': share.name,
+              'path': share.name,
+              'size': stat.size,
+              'isDirectory': false,
+              'modified': stat.modified.toIso8601String(),
+            }
+          ];
+          res.headers.contentType = ContentType.json;
+          res.write(jsonEncode(items));
+          await res.close();
+          return;
+        }
 
         final targetDir = Directory(p.normalize(p.join(share.localPath, subpath)));
         if (!targetDir.path.startsWith(share.localPath) || !targetDir.existsSync()) {
@@ -339,8 +391,12 @@ class AeroLinkService {
           orElse: () => throw Exception('Share not found'),
         );
 
-        final targetFile = File(p.normalize(p.join(share.localPath, relPath)));
-        if (!targetFile.path.startsWith(share.localPath) || !targetFile.existsSync()) {
+        final isFile = share.isFile || File(share.localPath).existsSync();
+        final targetFile = isFile
+            ? File(share.localPath)
+            : File(p.normalize(p.join(share.localPath, relPath)));
+
+        if (!targetFile.existsSync()) {
           res.statusCode = HttpStatus.notFound;
           await res.close();
           return;
@@ -495,6 +551,32 @@ class AeroLinkService {
     _broadcastBeacon(isBye: true);
   }
 
+  // --- Multicast Lock (Android Wi-Fi power-save bypass) ---
+  static const MethodChannel _nativeChannel = MethodChannel('com.aerofiles.app/storage');
+
+  Future<void> _acquireMulticastLock() async {
+    try {
+      if (Platform.isAndroid) {
+        await _nativeChannel.invokeMethod('acquireMulticastLock');
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _releaseMulticastLock() async {
+    try {
+      if (Platform.isAndroid) {
+        await _nativeChannel.invokeMethod('releaseMulticastLock');
+      }
+    } catch (_) {}
+  }
+
+  void _saveKnownDevices() {
+    try {
+      final jsonList = nearbyDevices.value.map((d) => d.toJson()).toList();
+      _prefs.setString('aerolink_known_devices_json', jsonEncode(jsonList));
+    } catch (_) {}
+  }
+
   // --- Active 30-Second Discovery Scan ---
 
   void startScan({int durationSeconds = 30}) {
@@ -504,8 +586,17 @@ class AeroLinkService {
 
     LogService.instance.info('AEROLINK', 'Starting active network scan for $durationSeconds seconds');
 
-    // Broadcast discovery query immediately
+    // 1. Acquire Android MulticastLock so Wi-Fi driver does not filter packets
+    _acquireMulticastLock();
+
+    // 2. Direct ping known devices immediately to refresh status
+    _pingAllKnownDevices();
+
+    // 3. Broadcast discovery query immediately (UDP)
     broadcastDiscoveryQuery();
+
+    // 4. Subnet TCP sweep for port 52831 (Bypasses all router AP/UDP isolation)
+    _probeSubnetAeroLink();
 
     // Re-query every 3 seconds while active
     _scanPeriodicTimer?.cancel();
@@ -531,7 +622,135 @@ class AeroLinkService {
     _scanPeriodicTimer = null;
     isScanning.value = false;
     scanSecondsRemaining.value = 0;
+    _releaseMulticastLock();
     LogService.instance.info('AEROLINK', 'AeroLink network scan stopped');
+  }
+
+  /// Pings all known devices directly via HTTP GET /aerolink/ping
+  Future<void> _pingAllKnownDevices() async {
+    for (final dev in List<AeroLinkDevice>.from(nearbyDevices.value)) {
+      pingDevice(dev);
+    }
+  }
+
+  /// Directly tests if a device is online and updates its metadata
+  Future<bool> pingDevice(AeroLinkDevice device) async {
+    try {
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 2);
+      final req = await client.getUrl(Uri.parse('http://${device.ip}:${device.port}/aerolink/ping'));
+      final res = await req.close();
+      if (res.statusCode == 200) {
+        final body = await utf8.decodeStream(res);
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        device.isOnline = true;
+        device.lastSeen = DateTime.now();
+        device.sharesCount = (json['sharesCount'] as int?) ?? device.sharesCount;
+        final devName = json['deviceName'] as String? ?? '';
+        if (devName.isNotEmpty) device.deviceName = devName;
+        nearbyDevices.value = List<AeroLinkDevice>.from(nearbyDevices.value);
+        _saveKnownDevices();
+        client.close();
+        return true;
+      }
+      client.close();
+    } catch (_) {}
+    return false;
+  }
+
+  /// High-speed parallel TCP scan of the local subnet for port 52831
+  Future<void> _probeSubnetAeroLink() async {
+    try {
+      final ip = await _getLocalIp();
+      if (ip == '127.0.0.1' || ip.isEmpty) return;
+      final parts = ip.split('.');
+      if (parts.length != 4) return;
+      final subnetPrefix = '${parts[0]}.${parts[1]}.${parts[2]}';
+      final selfLast = int.tryParse(parts[3]) ?? -1;
+
+      // Scan 1..254 in concurrent batches of 25 to respect socket limits
+      for (int start = 1; start <= 254; start += 25) {
+        if (!isScanning.value) break;
+        final end = (start + 24).clamp(1, 254);
+        final futures = <Future<void>>[];
+        for (int i = start; i <= end; i++) {
+          if (i == selfLast) continue;
+          final hostIp = '$subnetPrefix.$i';
+          futures.add(_testAndAddHost(hostIp));
+        }
+        await Future.wait(futures);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _testAndAddHost(String hostIp) async {
+    try {
+      final socket = await Socket.connect(hostIp, defaultServerPort, timeout: const Duration(milliseconds: 750));
+      socket.destroy();
+
+      // Port is open! Ping HTTP endpoint
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 2);
+      final req = await client.getUrl(Uri.parse('http://$hostIp:$defaultServerPort/aerolink/ping'));
+      final res = await req.close();
+      if (res.statusCode == 200) {
+        final body = await utf8.decodeStream(res);
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        if (json['status'] == 'ok') {
+          final remoteId = json['deviceId'] as String? ?? '';
+          final remoteName = json['deviceName'] as String? ?? 'AeroFiles Device';
+          final count = (json['sharesCount'] as int?) ?? 0;
+          _upsertDevice(
+            deviceId: remoteId,
+            deviceName: remoteName,
+            ip: hostIp,
+            port: defaultServerPort,
+            sharesCount: count,
+            isOnline: true,
+          );
+        }
+      }
+      client.close();
+    } catch (_) {}
+  }
+
+  void _upsertDevice({
+    required String deviceId,
+    required String deviceName,
+    required String ip,
+    required int port,
+    required int sharesCount,
+    required bool isOnline,
+  }) {
+    if (deviceId.isEmpty || deviceId == _deviceId) return;
+    final currentList = List<AeroLinkDevice>.from(nearbyDevices.value);
+    final index = currentList.indexWhere((d) => d.deviceId == deviceId);
+
+    if (index != -1) {
+      final existing = currentList[index];
+      existing.deviceName = deviceName;
+      existing.ip = ip;
+      existing.port = port;
+      existing.sharesCount = sharesCount;
+      existing.lastSeen = DateTime.now();
+      existing.isOnline = isOnline;
+      existing.authToken = _remoteAuthTokens[deviceId];
+    } else {
+      currentList.add(
+        AeroLinkDevice(
+          deviceId: deviceId,
+          deviceName: deviceName,
+          ip: ip,
+          port: port,
+          sharesCount: sharesCount,
+          lastSeen: DateTime.now(),
+          isOnline: isOnline,
+          authToken: _remoteAuthTokens[deviceId],
+        ),
+      );
+    }
+    nearbyDevices.value = currentList;
+    _saveKnownDevices();
   }
 
   Future<void> broadcastDiscoveryQuery() async {
@@ -605,34 +824,14 @@ class AeroLinkService {
       final sharesCount = (json['sharesCount'] as int?) ?? 0;
       final isOnline = (json['isOnline'] as bool?) ?? true;
 
-      final currentList = List<AeroLinkDevice>.from(nearbyDevices.value);
-      final index = currentList.indexWhere((d) => d.deviceId == remoteId);
-
-      if (index != -1) {
-        final existing = currentList[index];
-        existing.deviceName = name;
-        existing.ip = ip;
-        existing.port = port;
-        existing.sharesCount = sharesCount;
-        existing.lastSeen = DateTime.now();
-        existing.isOnline = isOnline;
-        existing.authToken = _remoteAuthTokens[remoteId];
-      } else {
-        currentList.add(
-          AeroLinkDevice(
-            deviceId: remoteId,
-            deviceName: name,
-            ip: ip,
-            port: port,
-            sharesCount: sharesCount,
-            lastSeen: DateTime.now(),
-            isOnline: isOnline,
-            authToken: _remoteAuthTokens[remoteId],
-          ),
-        );
-      }
-
-      nearbyDevices.value = currentList;
+      _upsertDevice(
+        deviceId: remoteId,
+        deviceName: name,
+        ip: ip,
+        port: port,
+        sharesCount: sharesCount,
+        isOnline: isOnline,
+      );
     } catch (_) {}
   }
 
@@ -649,11 +848,9 @@ class AeroLinkService {
       }
     }
 
-    // Prune devices offline for more than 30 minutes
-    currentList.removeWhere((d) => !d.isOnline && now.difference(d.lastSeen).inMinutes > 30);
-
     if (changed) {
       nearbyDevices.value = currentList;
+      _saveKnownDevices();
     }
   }
 
@@ -684,6 +881,7 @@ class AeroLinkService {
 
           final list = List<AeroLinkDevice>.from(nearbyDevices.value);
           nearbyDevices.value = list;
+          _saveKnownDevices();
           client.close();
           return true;
         }
@@ -703,6 +901,7 @@ class AeroLinkService {
     final dev = list.where((d) => d.deviceId == deviceId).firstOrNull;
     if (dev != null) dev.authToken = null;
     nearbyDevices.value = list;
+    _saveKnownDevices();
   }
 
   void forgetDevice(String deviceId) {
@@ -711,6 +910,7 @@ class AeroLinkService {
     final list = List<AeroLinkDevice>.from(nearbyDevices.value);
     list.removeWhere((d) => d.deviceId == deviceId);
     nearbyDevices.value = list;
+    _saveKnownDevices();
   }
 
   Future<String> getLocalIp() => _getLocalIp();

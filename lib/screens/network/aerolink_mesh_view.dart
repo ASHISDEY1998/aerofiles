@@ -51,28 +51,33 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
 
   Future<void> _handleDeviceTap(AeroLinkDevice device) async {
     if (!device.isOnline) {
-      showCupertinoDialog(
-        context: context,
-        builder: (ctx) => CupertinoAlertDialog(
-          title: Text(device.deviceName),
-          content: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'This device is currently offline.\n\nMake sure ${device.deviceName} is connected to the same Wi-Fi network and has AeroLink enabled.',
+      // Direct ping to check if peer is reachable
+      final ok = await _service.pingDevice(device);
+      if (!ok && mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: Text(device.deviceName),
+            content: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'This device is currently unreachable.\n\nMake sure ${device.deviceName} is connected to this Wi-Fi and has AeroLink enabled.',
+              ),
             ),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ],
           ),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('OK'),
-              onPressed: () => Navigator.pop(ctx),
-            ),
-          ],
-        ),
-      );
-      return;
+        );
+        return;
+      }
     }
 
     // If device is not yet paired, trigger 6-digit PIN pairing dialog
+    if (!mounted) return;
     if (!device.isPaired) {
       final paired = await showCupertinoDialog<bool>(
         context: context,
@@ -259,8 +264,8 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                   const SizedBox(height: 12),
                   Text(
                     isActive
-                        ? 'Streaming active on local Wi-Fi. Files can be streamed on-the-fly without downloading.'
-                        : 'Enable AeroLink to share folders and stream videos directly to your other AeroFiles devices.',
+                        ? 'AeroLink active • Ready to share and stream'
+                        : 'Turn on to share folders and stream files with your other devices.',
                     style: const TextStyle(color: AppleColors.textSecondary, fontSize: 13),
                   ),
                   const SizedBox(height: 14),
@@ -270,8 +275,8 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                       Expanded(
                         child: Text(
                           isActive
-                              ? 'Sharing ${shares.length} folder${shares.length == 1 ? '' : 's'} as "${_service.deviceName}"'
-                              : '${shares.length} folder${shares.length == 1 ? '' : 's'} configured',
+                              ? 'Sharing ${shares.length} item${shares.length == 1 ? '' : 's'} as "${_service.deviceName}"'
+                              : '${shares.length} item${shares.length == 1 ? '' : 's'} configured',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -405,13 +410,13 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (isScanning) ...[
-                          const CupertinoActivityIndicator(radius: 14),
-                          const SizedBox(height: 12),
+                          const CupertinoActivityIndicator(radius: 12),
+                          const SizedBox(height: 10),
                           ValueListenableBuilder<int>(
                             valueListenable: _service.scanSecondsRemaining,
                             builder: (context, seconds, _) {
                               return Text(
-                                'Scanning Wi-Fi network... (${seconds}s remaining)',
+                                'Searching for devices... (${seconds}s)',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -422,7 +427,7 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Searching for devices with AeroLink enabled on this Wi-Fi.',
+                            'Looking for AeroFiles devices on this Wi-Fi network.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 11,
@@ -430,41 +435,23 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                             ),
                           ),
                         ] else ...[
-                          const Icon(CupertinoIcons.antenna_radiowaves_left_right, color: AppleColors.systemBlue, size: 32),
-                          const SizedBox(height: 10),
+                          Icon(CupertinoIcons.antenna_radiowaves_left_right, color: AppleColors.systemBlue.withValues(alpha: 0.8), size: 30),
+                          const SizedBox(height: 8),
                           Text(
-                            'No AeroFiles Devices Found',
+                            'No Devices Nearby',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: isDark ? AppleColors.textPrimary : AppleColors.textPrimaryLight,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Make sure other devices are on the same Wi-Fi network with AeroLink enabled.',
+                            'Turn on AeroLink on your other devices on this Wi-Fi to connect.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 11,
                               color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          CupertinoButton(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            borderRadius: BorderRadius.circular(10),
-                            color: AppleColors.systemBlue,
-                            onPressed: () => _service.startScan(durationSeconds: 30),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(CupertinoIcons.arrow_clockwise, size: 14, color: Colors.white),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Scan for Devices (30s)',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
-                                ),
-                              ],
                             ),
                           ),
                         ],

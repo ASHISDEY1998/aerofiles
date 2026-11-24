@@ -13,7 +13,6 @@ import '../../services/security/biometric_service.dart';
 import '../../services/security/safe_vault_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/apple_theme.dart';
-import '../../widgets/apple_card.dart';
 import '../security/safe_vault_screen.dart';
 import '../security/vault_pin_dialog.dart';
 import 'legal_screen.dart';
@@ -48,194 +47,583 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Widget _buildSquircleIcon(IconData icon, Color bgColor, {Color iconColor = Colors.white, double size = 18}) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, color: iconColor, size: size),
+    );
+  }
+
+  Widget _buildGroupCard({required List<Widget> children, required bool isDark}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+          width: 0.8,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildRowItem({
+    required Widget icon,
+    required String title,
+    String? subtitle,
+    Widget? trailing,
+    VoidCallback? onTap,
+    bool showDivider = true,
+    bool isDark = true,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              child: Row(
+                children: [
+                  icon,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                            color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                          ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing,
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (showDivider)
+          Divider(
+            height: 0.5,
+            thickness: 0.5,
+            indent: 58,
+            color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
+      backgroundColor: isDark ? AppleColors.pureBlack : const Color(0xFFF2F2F7),
       appBar: AppBar(
         title: const Text('Settings'),
+        backgroundColor: isDark ? AppleColors.pureBlack : const Color(0xFFF2F2F7),
+        elevation: 0,
       ),
       body: AnimatedBuilder(
         animation: _settings,
         builder: (context, _) {
-          return ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            children: [
-              // Section 1: Appearance
-              _buildSectionHeader('Appearance', isDark),
-              AppleCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Theme',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: CupertinoSegmentedControl<ThemeMode>(
-                        groupValue: _settings.themeMode,
-                        selectedColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-                        unselectedColor: isDark ? AppleColors.darkCard : AppleColors.lightCard,
-                        borderColor: isDark ? AppleColors.borderStroke : AppleColors.lightBorderStroke,
-                        children: const {
-                          ThemeMode.dark: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(CupertinoIcons.moon_fill, size: 14),
-                                SizedBox(width: 6),
-                                Text('Dark', style: TextStyle(fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                          ThemeMode.light: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(CupertinoIcons.sun_max_fill, size: 14),
-                                SizedBox(width: 6),
-                                Text('Light', style: TextStyle(fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                          ThemeMode.system: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(CupertinoIcons.device_phone_portrait, size: 14),
-                                SizedBox(width: 6),
-                                Text('System', style: TextStyle(fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                        },
-                        onValueChanged: (mode) => _settings.setThemeMode(mode),
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                children: [
+                  // Hero Header Card (Apple Profile Style)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 24),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                        width: 0.8,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Section 2: Delete & Recycle Bin
-              _buildSectionHeader('Delete & Recycle Bin', isDark),
-              AppleCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    ListTile(
-                      title: const Text('Default Delete Action'),
-                      subtitle: Text(_getDeleteBehaviorLabel(_settings.deleteBehavior)),
-                      trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
-                      onTap: _showDeleteBehaviorPicker,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppleColors.systemBlue, AppleColors.systemIndigo],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(13),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppleColors.systemBlue.withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(CupertinoIcons.folder_fill, color: Colors.white, size: 28),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    'AeroFiles',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppleColors.systemBlue.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'PRO',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppleColors.systemBlue,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Private Local & Network File Manager',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          minimumSize: Size.zero,
+                          color: AppleColors.systemBlue.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          onPressed: _handleCheckUpdate,
+                          child: _isCheckingUpdate
+                              ? const CupertinoActivityIndicator(radius: 7)
+                              : const Text(
+                                  'Update',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppleColors.systemBlue),
+                                ),
+                        ),
+                      ],
                     ),
-                    const Divider(height: 1, indent: 16),
-                    SwitchListTile(
-                      title: const Text('Auto-empty Recycle Bin'),
-                      subtitle: const Text('Automatically purge files older than 30 days'),
-                      value: _settings.autoEmptyTrash,
-                      activeTrackColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-                      onChanged: (val) => _settings.setAutoEmptyTrash(val),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
 
-              const SizedBox(height: 24),
+                  // Section 1: Appearance
+                  _buildSectionHeader('APPEARANCE', isDark),
+                  _buildGroupCard(
+                    isDark: isDark,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                _buildSquircleIcon(CupertinoIcons.sun_max_fill, AppleColors.systemBlue),
+                                const SizedBox(width: 14),
+                                Text(
+                                  'Interface Theme',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w400,
+                                    color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: CupertinoSegmentedControl<ThemeMode>(
+                                groupValue: _settings.themeMode,
+                                selectedColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
+                                unselectedColor: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                                borderColor: Colors.transparent,
+                                children: const {
+                                  ThemeMode.dark: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(CupertinoIcons.moon_fill, size: 14),
+                                        SizedBox(width: 6),
+                                        Text('Dark', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                      ],
+                                    ),
+                                  ),
+                                  ThemeMode.light: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(CupertinoIcons.sun_max_fill, size: 14),
+                                        SizedBox(width: 6),
+                                        Text('Light', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                      ],
+                                    ),
+                                  ),
+                                  ThemeMode.system: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(CupertinoIcons.device_phone_portrait, size: 14),
+                                        SizedBox(width: 6),
+                                        Text('System', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                      ],
+                                    ),
+                                  ),
+                                },
+                                onValueChanged: (mode) => _settings.setThemeMode(mode),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
 
-              // Section 3: File Options
-              _buildSectionHeader('File Explorer Options', isDark),
-              AppleCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    SwitchListTile(
-                      title: const Text('Show Hidden Files'),
-                      subtitle: const Text('Display files and folders starting with a dot (.)'),
-                      value: _settings.showHiddenFiles,
-                      activeTrackColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-                      onChanged: (val) => _settings.setShowHiddenFiles(val),
-                    ),
-                  ],
-                ),
-              ),
+                  const SizedBox(height: 22),
 
-              const SizedBox(height: 24),
+                  // Section 2: File Management & Trash
+                  _buildSectionHeader('FILE MANAGEMENT & TRASH', isDark),
+                  _buildGroupCard(
+                    isDark: isDark,
+                    children: [
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.trash_fill, AppleColors.systemRed),
+                        title: 'Default Delete Action',
+                        subtitle: _getDeleteBehaviorLabel(_settings.deleteBehavior),
+                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
+                        onTap: _showDeleteBehaviorPicker,
+                        isDark: isDark,
+                      ),
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.clock_fill, AppleColors.systemOrange),
+                        title: 'Auto-empty Recycle Bin',
+                        subtitle: 'Automatically purge files older than 30 days',
+                        trailing: CupertinoSwitch(
+                          value: _settings.autoEmptyTrash,
+                          activeTrackColor: AppleColors.systemBlue,
+                          onChanged: (val) => _settings.setAutoEmptyTrash(val),
+                        ),
+                        isDark: isDark,
+                      ),
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.eye_fill, AppleColors.systemPurple),
+                        title: 'Show Hidden Files',
+                        subtitle: 'Display files and folders starting with a dot (.)',
+                        trailing: CupertinoSwitch(
+                          value: _settings.showHiddenFiles,
+                          activeTrackColor: AppleColors.systemBlue,
+                          onChanged: (val) => _settings.setShowHiddenFiles(val),
+                        ),
+                        showDivider: false,
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
 
-              // Section 4: Diagnostics & Logging
-              _buildSectionHeader('Diagnostics & Logging', isDark),
-              AppleCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    SwitchListTile(
-                      secondary: const Icon(CupertinoIcons.waveform_path_ecg, color: AppleColors.systemOrange),
-                      title: const Text('Enable Diagnostic Logging'),
-                      subtitle: const Text('Record app events, network activity, and errors for debugging'),
-                      value: _logService.isLoggingEnabled,
-                      activeTrackColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-                      onChanged: (val) async {
-                        await _logService.setLoggingEnabled(val);
-                        setState(() {});
-                      },
-                    ),
-                    if (_logService.isLoggingEnabled || _logService.entryCount > 0) ...[
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(CupertinoIcons.doc_text_fill, color: AppleColors.systemBlue),
-                        title: Text('Log File (${_logService.logSizeText})'),
-                        subtitle: Text(
-                          _logService.isLoggingEnabled
+                  const SizedBox(height: 22),
+
+                  // Section 3: Security & Privacy
+                  _buildSectionHeader('SECURITY & PRIVACY', isDark),
+                  _buildGroupCard(
+                    isDark: isDark,
+                    children: [
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.lock_shield_fill, AppleColors.systemGreen),
+                        title: 'App Lock (Biometrics & PIN)',
+                        subtitle: 'Require Fingerprint, Face ID, or PIN to open app',
+                        trailing: CupertinoSwitch(
+                          value: BiometricService.instance.isAppLockEnabled,
+                          activeTrackColor: AppleColors.systemBlue,
+                          onChanged: (val) async {
+                            final canAuth = await BiometricService.instance.canAuthenticate();
+                            if (!canAuth && val) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('No biometrics or device PIN configured on this device')),
+                                );
+                              }
+                              return;
+                            }
+
+                            final authenticated = await BiometricService.instance.authenticate(
+                              reason: val
+                                  ? 'Verify identity to enable App Lock'
+                                  : 'Verify identity to disable App Lock',
+                            );
+
+                            if (authenticated) {
+                              await BiometricService.instance.setAppLockEnabled(val);
+                              setState(() {});
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(val ? 'App Lock enabled' : 'App Lock disabled'),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        isDark: isDark,
+                      ),
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.shield_lefthalf_fill, AppleColors.systemIndigo),
+                        title: 'Safe Vault (AES-256)',
+                        subtitle: 'Hardware encrypted folder hidden from gallery and files',
+                        trailing: CupertinoSwitch(
+                          value: SafeVaultService.instance.isVaultEnabled,
+                          activeTrackColor: AppleColors.systemIndigo,
+                          onChanged: (val) async {
+                            if (val) {
+                              if (!SafeVaultService.instance.hasPin) {
+                                final created = await VaultPinDialog.show(
+                                  context,
+                                  mode: VaultPinMode.setup,
+                                );
+                                if (created && context.mounted) {
+                                  setState(() {});
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Safe Vault enabled. Entry is now visible in Local Storage.'),
+                                      duration: Duration(seconds: 3),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                final unlocked = await VaultPinDialog.show(
+                                  context,
+                                  mode: VaultPinMode.unlock,
+                                );
+                                if (unlocked) {
+                                  await SafeVaultService.instance.setVaultEnabled(true);
+                                  if (context.mounted) {
+                                    setState(() {});
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Safe Vault enabled and visible in app'),
+                                        duration: Duration(seconds: 3),
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                            } else {
+                              final unlocked = await VaultPinDialog.show(
+                                context,
+                                mode: VaultPinMode.unlock,
+                              );
+                              if (unlocked) {
+                                await SafeVaultService.instance.setVaultEnabled(false);
+                                if (context.mounted) {
+                                  setState(() {});
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Safe Vault is now completely hidden from app'),
+                                      duration: Duration(seconds: 3),
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+                          },
+                        ),
+                        showDivider: SafeVaultService.instance.isVaultEnabled,
+                        isDark: isDark,
+                      ),
+                      if (SafeVaultService.instance.isVaultEnabled) ...[
+                        _buildRowItem(
+                          icon: _buildSquircleIcon(CupertinoIcons.viewfinder, AppleColors.systemTeal),
+                          title: 'Vault Fingerprint Unlock',
+                          subtitle: 'Allow biometric fingerprint to unlock Safe Vault',
+                          trailing: CupertinoSwitch(
+                            value: SafeVaultService.instance.isBiometricsEnabled,
+                            activeTrackColor: AppleColors.systemBlue,
+                            onChanged: (val) async {
+                              await SafeVaultService.instance.setBiometricsEnabled(val);
+                              setState(() {});
+                            },
+                          ),
+                          isDark: isDark,
+                        ),
+                        _buildRowItem(
+                          icon: _buildSquircleIcon(CupertinoIcons.pencil_circle_fill, AppleColors.systemOrange),
+                          title: 'Change Vault PIN',
+                          subtitle: 'Update your custom Safe Vault password',
+                          trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
+                          onTap: () async {
+                            final changed = await VaultPinDialog.show(
+                              context,
+                              mode: VaultPinMode.change,
+                            );
+                            if (changed && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Safe Vault PIN updated successfully'),
+                                  duration: Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                          },
+                          isDark: isDark,
+                        ),
+                        _buildRowItem(
+                          icon: _buildSquircleIcon(CupertinoIcons.folder_badge_person_crop, AppleColors.systemGreen),
+                          title: 'Open Safe Vault',
+                          subtitle: '${SafeVaultService.instance.items.length} encrypted items',
+                          trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (_) => const SafeVaultScreen(),
+                              ),
+                            ).then((_) {
+                              if (mounted) setState(() {});
+                            });
+                          },
+                          showDivider: false,
+                          isDark: isDark,
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  // Section 4: Diagnostics & Cache
+                  _buildSectionHeader('DIAGNOSTICS & SYSTEM', isDark),
+                  _buildGroupCard(
+                    isDark: isDark,
+                    children: [
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.waveform_path_ecg, AppleColors.systemOrange),
+                        title: 'Diagnostic Logging',
+                        subtitle: 'Record app events, network activity, and errors for debugging',
+                        trailing: CupertinoSwitch(
+                          value: _logService.isLoggingEnabled,
+                          activeTrackColor: AppleColors.systemBlue,
+                          onChanged: (val) async {
+                            await _logService.setLoggingEnabled(val);
+                            setState(() {});
+                          },
+                        ),
+                        showDivider: _logService.isLoggingEnabled || _logService.entryCount > 0,
+                        isDark: isDark,
+                      ),
+                      if (_logService.isLoggingEnabled || _logService.entryCount > 0) ...[
+                        _buildRowItem(
+                          icon: _buildSquircleIcon(CupertinoIcons.doc_text_fill, AppleColors.systemBlue),
+                          title: 'Log File (${_logService.logSizeText})',
+                          subtitle: _logService.isLoggingEnabled
                               ? 'Logging active • ${_logService.entryCount} entries'
                               : 'Logging paused • ${_logService.entryCount} entries',
+                          trailing: CupertinoButton(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            minimumSize: Size.zero,
+                            color: AppleColors.systemBlue.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            onPressed: _showLogViewerModal,
+                            child: const Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppleColors.systemBlue)),
+                          ),
+                          isDark: isDark,
                         ),
-                        trailing: CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: _showLogViewerModal,
-                          child: const Text('View'),
+                        _buildRowItem(
+                          icon: _buildSquircleIcon(CupertinoIcons.paperplane_fill, AppleColors.systemGreen),
+                          title: 'Send Diagnostic Logs',
+                          subtitle: 'Upload cloud link, share file, or copy',
+                          trailing: _isUploadingLog
+                              ? const CupertinoActivityIndicator(radius: 8)
+                              : const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
+                          onTap: _isUploadingLog ? null : _showSendLogSheet,
+                          isDark: isDark,
                         ),
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(CupertinoIcons.paperplane_fill, color: AppleColors.systemGreen),
-                        title: const Text(
-                          'Send Diagnostic Logs',
-                          style: TextStyle(color: AppleColors.systemGreen, fontWeight: FontWeight.w600),
+                        _buildRowItem(
+                          icon: _buildSquircleIcon(CupertinoIcons.trash_fill, AppleColors.systemRed),
+                          title: 'Clear Log Buffer',
+                          trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
+                          onTap: () async {
+                            await _logService.clearLogs();
+                            setState(() {});
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Log buffer cleared')),
+                              );
+                            }
+                          },
+                          isDark: isDark,
                         ),
-                        subtitle: const Text('Upload link to GitHub/Cloud, share file, or copy'),
-                        trailing: _isUploadingLog
-                            ? const CupertinoActivityIndicator(radius: 9)
-                            : const Icon(CupertinoIcons.chevron_right, size: 14),
-                        onTap: _isUploadingLog ? null : _showSendLogSheet,
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(CupertinoIcons.trash, color: AppleColors.systemRed),
-                        title: const Text('Clear Log Buffer', style: TextStyle(color: AppleColors.systemRed)),
-                        onTap: () async {
-                          await _logService.clearLogs();
-                          setState(() {});
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Log buffer cleared')),
-                            );
-                          }
-                        },
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(CupertinoIcons.photo_on_rectangle, color: AppleColors.systemOrange),
-                        title: const Text('Clear Thumbnail Cache'),
-                        subtitle: const Text('Free disk cache used by persistent video thumbnails'),
+                      ],
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.photo_fill, AppleColors.systemPink),
+                        title: 'Clear Thumbnail Cache',
+                        subtitle: 'Free disk space used by video thumbnails',
+                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
                         onTap: () async {
                           await ThumbnailService.instance.clearAll();
                           if (context.mounted) {
@@ -244,265 +632,97 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             );
                           }
                         },
+                        showDivider: false,
+                        isDark: isDark,
                       ),
                     ],
-                  ],
-                ),
-              ),
+                  ),
 
-              const SizedBox(height: 24),
+                  const SizedBox(height: 22),
 
-              // Section: Security & Privacy
-              _buildSectionHeader('Security & Privacy', isDark),
-              AppleCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(CupertinoIcons.lock_shield_fill, color: AppleColors.systemBlue),
-                      title: const Text('App Lock (Biometrics & PIN)'),
-                      subtitle: const Text('Require Fingerprint, Face ID, or PIN to open app'),
-                      trailing: CupertinoSwitch(
-                        value: BiometricService.instance.isAppLockEnabled,
-                        activeTrackColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-                        onChanged: (val) async {
-                          final canAuth = await BiometricService.instance.canAuthenticate();
-                          if (!canAuth && val) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('No biometrics or device PIN configured on this device')),
-                              );
-                            }
-                            return;
-                          }
-
-                          final authenticated = await BiometricService.instance.authenticate(
-                            reason: val
-                                ? 'Verify identity to enable App Lock'
-                                : 'Verify identity to disable App Lock',
-                          );
-
-                          if (authenticated) {
-                            await BiometricService.instance.setAppLockEnabled(val);
-                            setState(() {});
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(val ? 'App Lock enabled' : 'App Lock disabled'),
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
-                            }
-                          }
-                        },
+                  // Section 5: About & Legal
+                  _buildSectionHeader('ABOUT & LEGAL', isDark),
+                  _buildGroupCard(
+                    isDark: isDark,
+                    children: [
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.arrow_clockwise_circle_fill, AppleColors.systemBlue),
+                        title: 'Check for Updates',
+                        subtitle: 'Auto-update directly from GitHub releases',
+                        trailing: _isCheckingUpdate
+                            ? const CupertinoActivityIndicator(radius: 8)
+                            : const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
+                        onTap: _isCheckingUpdate ? null : _handleCheckUpdate,
+                        isDark: isDark,
                       ),
-                    ),
-                    const Divider(height: 1, indent: 56),
-
-                    // Safe Vault Stealth Feature
-                    ListTile(
-                      leading: const Icon(CupertinoIcons.shield_lefthalf_fill, color: AppleColors.systemIndigo),
-                      title: const Text('Safe Vault (Hidden Encrypted)'),
-                      subtitle: const Text('Hardware AES-256 folder hidden from gallery and file explorer'),
-                      trailing: CupertinoSwitch(
-                        value: SafeVaultService.instance.isVaultEnabled,
-                        activeTrackColor: isDark ? AppleColors.systemIndigo : AppleColors.systemBlueLight,
-                        onChanged: (val) async {
-                          if (val) {
-                            // Turning ON Safe Vault
-                            if (!SafeVaultService.instance.hasPin) {
-                              final created = await VaultPinDialog.show(
-                                context,
-                                mode: VaultPinMode.setup,
-                              );
-                              if (created && context.mounted) {
-                                setState(() {});
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Safe Vault enabled. Entry is now visible in Local Storage.'),
-                                    duration: Duration(seconds: 3),
-                                  ),
-                                );
-                              }
-                            } else {
-                              final unlocked = await VaultPinDialog.show(
-                                context,
-                                mode: VaultPinMode.unlock,
-                              );
-                              if (unlocked) {
-                                await SafeVaultService.instance.setVaultEnabled(true);
-                                if (context.mounted) {
-                                  setState(() {});
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Safe Vault enabled and visible in app'),
-                                      duration: Duration(seconds: 3),
-                                    ),
-                                  );
-                                }
-                              }
-                            }
-                          } else {
-                            // Turning OFF Safe Vault: stealth mode hides it from app
-                            final unlocked = await VaultPinDialog.show(
-                              context,
-                              mode: VaultPinMode.unlock,
-                            );
-                            if (unlocked) {
-                              await SafeVaultService.instance.setVaultEnabled(false);
-                              if (context.mounted) {
-                                setState(() {});
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Safe Vault is now completely hidden from app'),
-                                    duration: Duration(seconds: 3),
-                                  ),
-                                );
-                              }
-                            }
-                          }
-                        },
-                      ),
-                    ),
-
-                    if (SafeVaultService.instance.isVaultEnabled) ...[
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(CupertinoIcons.viewfinder, color: AppleColors.systemTeal),
-                        title: const Text('Vault Fingerprint Unlock'),
-                        subtitle: const Text('Allow biometric fingerprint to unlock Safe Vault'),
-                        trailing: CupertinoSwitch(
-                          value: SafeVaultService.instance.isBiometricsEnabled,
-                          activeTrackColor: isDark ? AppleColors.systemBlue : AppleColors.systemBlueLight,
-                          onChanged: (val) async {
-                            await SafeVaultService.instance.setBiometricsEnabled(val);
-                            setState(() {});
-                          },
-                        ),
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(CupertinoIcons.pencil_circle_fill, color: AppleColors.systemOrange),
-                        title: const Text('Change Vault PIN'),
-                        subtitle: const Text('Update your custom Safe Vault password/PIN'),
-                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
-                        onTap: () async {
-                          final changed = await VaultPinDialog.show(
-                            context,
-                            mode: VaultPinMode.change,
-                          );
-                          if (changed && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Safe Vault PIN updated successfully'),
-                                duration: Duration(seconds: 3),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: const Icon(CupertinoIcons.folder_badge_plus, color: AppleColors.systemGreen),
-                        title: const Text('Open Safe Vault'),
-                        subtitle: Text('${SafeVaultService.instance.items.length} encrypted items'),
-                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.doc_plaintext, AppleColors.catSystem),
+                        title: 'License Agreement (EULA)',
+                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
                         onTap: () {
                           Navigator.push(
                             context,
                             CupertinoPageRoute(
-                              builder: (_) => const SafeVaultScreen(),
+                              builder: (_) => const LegalScreen(type: LegalDocType.eula),
                             ),
-                          ).then((_) {
-                            if (mounted) setState(() {});
-                          });
-                        },
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Section 5: Legal & Play Store
-              _buildSectionHeader('About & Legal', isDark),
-              AppleCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(CupertinoIcons.doc_plaintext),
-                      title: const Text('License Agreement (EULA)'),
-                      trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          CupertinoPageRoute(
-                            builder: (_) => const LegalScreen(type: LegalDocType.eula),
-                          ),
-                        );
-                      },
-                    ),
-                    const Divider(height: 1, indent: 56),
-                    ListTile(
-                      leading: const Icon(CupertinoIcons.shield_lefthalf_fill),
-                      title: const Text('Privacy Policy'),
-                      trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          CupertinoPageRoute(
-                            builder: (_) => const LegalScreen(type: LegalDocType.privacyPolicy),
-                          ),
-                        );
-                      },
-                    ),
-                    const Divider(height: 1, indent: 56),
-                    ListTile(
-                      leading: const Icon(CupertinoIcons.checkmark_seal_fill),
-                      title: const Text('Open Source Licenses'),
-                      trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
-                      onTap: () {
-                        showLicensePage(
-                          context: context,
-                          applicationName: 'AeroFiles',
-                          applicationVersion: '2.0.0',
-                        );
-                      },
-                    ),
-                    const Divider(height: 1, indent: 56),
-                    ListTile(
-                      leading: const Icon(CupertinoIcons.arrow_clockwise_circle_fill, color: AppleColors.systemBlue),
-                      title: const Text('Check for Updates'),
-                      subtitle: const Text('Auto-update directly from GitHub'),
-                      trailing: _isCheckingUpdate
-                          ? const CupertinoActivityIndicator(radius: 9)
-                          : const Icon(CupertinoIcons.chevron_right, size: 14),
-                      onTap: _isCheckingUpdate ? null : _handleCheckUpdate,
-                    ),
-                    const Divider(height: 1, indent: 56),
-                    ListTile(
-                      leading: const Icon(CupertinoIcons.info_circle_fill),
-                      title: const Text('Version'),
-                      trailing: FutureBuilder<PackageInfo>(
-                        future: PackageInfo.fromPlatform(),
-                        builder: (context, snapshot) {
-                          final version = snapshot.hasData ? snapshot.data!.version : '2.0.0';
-                          final build = snapshot.hasData ? snapshot.data!.buildNumber : '13';
-                          return Text(
-                            '$version (Build $build)',
-                            style: const TextStyle(color: AppleColors.textSecondary),
                           );
                         },
+                        isDark: isDark,
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.shield_fill, AppleColors.systemIndigo),
+                        title: 'Privacy Policy',
+                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            CupertinoPageRoute(
+                              builder: (_) => const LegalScreen(type: LegalDocType.privacyPolicy),
+                            ),
+                          );
+                        },
+                        isDark: isDark,
+                      ),
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.checkmark_seal_fill, AppleColors.systemTeal),
+                        title: 'Open Source Licenses',
+                        trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
+                        onTap: () {
+                          showLicensePage(
+                            context: context,
+                            applicationName: 'AeroFiles',
+                            applicationVersion: '2.1.2',
+                          );
+                        },
+                        isDark: isDark,
+                      ),
+                      _buildRowItem(
+                        icon: _buildSquircleIcon(CupertinoIcons.info_circle_fill, AppleColors.catSystem),
+                        title: 'Version',
+                        trailing: FutureBuilder<PackageInfo>(
+                          future: PackageInfo.fromPlatform(),
+                          builder: (context, snapshot) {
+                            final version = snapshot.hasData ? snapshot.data!.version : '2.1.2';
+                            final build = snapshot.hasData ? snapshot.data!.buildNumber : '19';
+                            return Text(
+                              '$version (Build $build)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                              ),
+                            );
+                          },
+                        ),
+                        showDivider: false,
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
 
-              const SizedBox(height: 32),
-            ],
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
           );
         },
       ),
@@ -511,14 +731,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      padding: const EdgeInsets.only(left: 6, bottom: 8),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
           color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
+          letterSpacing: 0.6,
         ),
       ),
     );

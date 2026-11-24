@@ -17,6 +17,7 @@ import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.media.ThumbnailUtils
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
@@ -42,6 +43,29 @@ class MainActivity : FlutterFragmentActivity() {
     private var focusChangeListener: AudioManager.OnAudioFocusChangeListener? = null
     private var becomingNoisyReceiver: BroadcastReceiver? = null
     private var methodChannel: MethodChannel? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
+
+    private fun acquireMulticastLock() {
+        try {
+            if (multicastLock == null) {
+                val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                multicastLock = wifiManager?.createMulticastLock("AeroFiles::AeroLinkMulticastLock")?.apply {
+                    setReferenceCounted(true)
+                }
+            }
+            if (multicastLock?.isHeld != true) {
+                multicastLock?.acquire()
+            }
+        } catch (_: Throwable) {}
+    }
+
+    private fun releaseMulticastLock() {
+        try {
+            if (multicastLock?.isHeld == true) {
+                multicastLock?.release()
+            }
+        } catch (_: Throwable) {}
+    }
 
     private fun setupAudioFocus() {
         if (audioManager == null) {
@@ -277,6 +301,14 @@ class MainActivity : FlutterFragmentActivity() {
                 }
                 "abandonAudioFocus" -> {
                     abandonAudioFocus()
+                    result.success(true)
+                }
+                "acquireMulticastLock" -> {
+                    acquireMulticastLock()
+                    result.success(true)
+                }
+                "releaseMulticastLock" -> {
+                    releaseMulticastLock()
                     result.success(true)
                 }
                 "getStorageStats" -> {

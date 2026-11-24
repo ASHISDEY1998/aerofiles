@@ -23,6 +23,20 @@ void main() {
       expect(reconstructed.name, share.name);
       expect(reconstructed.localPath, share.localPath);
       expect(reconstructed.addedAt, share.addedAt);
+      expect(reconstructed.isFile, isFalse);
+
+      final fileShare = AeroLinkShare(
+        id: 'file_456',
+        name: 'Report.pdf',
+        localPath: '/storage/emulated/0/Documents/Report.pdf',
+        addedAt: DateTime(2026, 11, 24, 16, 0, 0),
+        isFile: true,
+      );
+      final fileJson = fileShare.toJson();
+      expect(fileJson['isFile'], isTrue);
+      final reconstructedFile = AeroLinkShare.fromJson(fileJson);
+      expect(reconstructedFile.isFile, isTrue);
+      expect(reconstructedFile.name, 'Report.pdf');
     });
   });
 
