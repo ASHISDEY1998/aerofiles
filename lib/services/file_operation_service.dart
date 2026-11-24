@@ -3,12 +3,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import '../models/vfs_node.dart';
 import '../theme/apple_theme.dart';
-import 'vfs/local_vfs.dart';
-import 'vfs/smb_vfs.dart';
+import 'transfer_manager_service.dart';
 import 'vfs/vfs_provider.dart';
 
 class FileOperationService {
@@ -54,78 +52,14 @@ class FileOperationService {
     required VfsProvider sourceVfs,
     void Function(double progress, String currentItem)? onProgress,
   }) async {
-    bool allOk = true;
-    try {
-      await updateNotification(
-        title: 'Transferring ${items.length} item${items.length == 1 ? '' : 's'}',
-        content: 'Starting file transfer...',
-        progress: 0,
-        max: 100,
-      );
-
-      for (int i = 0; i < items.length; i++) {
-        final node = items[i];
-        final pct = ((i / items.length) * 100).toInt();
-        onProgress?.call(i / items.length, node.name);
-        await updateNotification(
-          title: 'Transferring ${items.length} item${items.length == 1 ? '' : 's'}',
-          content: '$pct% • ${node.name}',
-          progress: pct,
-          max: 100,
-        );
-
-        final destPath = p.join(targetDirPath, node.name);
-
-        try {
-          if (sourceVfs is LocalVfs && targetVfs is LocalVfs) {
-            final ok = await targetVfs.copy(node.path, destPath);
-            if (!ok) allOk = false;
-          } else if (sourceVfs is LocalVfs && targetVfs is SmbVfs) {
-            if (node.isDirectory) {
-              final ok = await _copyLocalDirToSmb(Directory(node.path), destPath, targetVfs);
-              if (!ok) allOk = false;
-            } else {
-              final f = File(node.path);
-              if (await f.exists()) {
-                final ok = await targetVfs.writeLocalFile(destPath, f);
-                if (!ok) allOk = false;
-              } else {
-                allOk = false;
-              }
-            }
-          } else if (sourceVfs is SmbVfs && targetVfs is LocalVfs) {
-            final f = File(destPath);
-            final ok = await sourceVfs.readToLocalFile(node.path, f);
-            if (!ok) allOk = false;
-          }
-        } catch (_) {
-          allOk = false;
-        }
-      }
-      onProgress?.call(1.0, 'Done');
-    } finally {
-      await stopNotification();
-    }
-    return allOk;
-  }
-
-  Future<bool> _copyLocalDirToSmb(Directory localDir, String remoteDirPath, SmbVfs smb) async {
-    try {
-      final parent = p.dirname(remoteDirPath);
-      final name = p.basename(remoteDirPath);
-      await smb.createDirectory(parent, name);
-      await for (final entity in localDir.list(recursive: false)) {
-        final childDest = p.join(remoteDirPath, p.basename(entity.path));
-        if (entity is Directory) {
-          await _copyLocalDirToSmb(entity, childDest, smb);
-        } else if (entity is File) {
-          await smb.writeLocalFile(childDest, entity);
-        }
-      }
-      return true;
-    } catch (_) {
-      return false;
-    }
+    await TransferManagerService.instance.startTransfer(
+      items: items,
+      targetDirPath: targetDirPath,
+      targetVfs: targetVfs,
+      sourceVfs: sourceVfs,
+      isMove: false,
+    );
+    return true;
   }
 
   Future<bool> moveItems({
@@ -135,19 +69,14 @@ class FileOperationService {
     required VfsProvider sourceVfs,
     void Function(double progress, String currentItem)? onProgress,
   }) async {
-    final success = await copyItems(
+    await TransferManagerService.instance.startTransfer(
       items: items,
       targetDirPath: targetDirPath,
       targetVfs: targetVfs,
       sourceVfs: sourceVfs,
-      onProgress: onProgress,
+      isMove: true,
     );
-    if (success) {
-      for (final node in items) {
-        await sourceVfs.delete(node.path, moveToTrash: false);
-      }
-    }
-    return success;
+    return true;
   }
 
   Future<void> shareItems(List<VfsNode> items) async {
@@ -157,7 +86,7 @@ class FileOperationService {
         .toList();
 
     if (localFiles.isNotEmpty) {
-      await Share.shareXFiles(localFiles);
+      await SharePlus.instance.share(ShareParams(files: localFiles));
     }
   }
 

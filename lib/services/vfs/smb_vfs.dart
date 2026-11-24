@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:dart_smb2/dart_smb2.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import '../../models/network_connection.dart';
 import '../../models/vfs_node.dart';
@@ -242,22 +243,7 @@ class SmbVfs implements VfsProvider {
     }
 
     // Determine target share and subpath
-    String shareName;
-    String subPath;
-
-    if (_defaultShare.isNotEmpty) {
-      shareName = _defaultShare;
-      subPath = cleanPath;
-    } else {
-      final segments = cleanPath.split('/').where((s) => s.isNotEmpty).toList();
-      if (segments.isEmpty) {
-        shareName = 'DATA';
-        subPath = '';
-      } else {
-        shareName = segments.first;
-        subPath = segments.skip(1).join('/');
-      }
-    }
+    final (shareName, subPath) = _resolveShareAndSub(cleanPath);
 
     final List<VfsNode> nodes = [];
     try {
@@ -268,8 +254,8 @@ class SmbVfs implements VfsProvider {
         if (item.name == '.' || item.name == '..') continue;
 
         final itemFullPath = _defaultShare.isNotEmpty
-            ? p.join(subPath, item.name)
-            : p.join(shareName, subPath, item.name);
+            ? (subPath.isEmpty ? item.name : '$subPath/${item.name}')
+            : (subPath.isEmpty ? '$shareName/${item.name}' : '$shareName/$subPath/${item.name}');
 
         nodes.add(
           VfsNode(
@@ -299,18 +285,61 @@ class SmbVfs implements VfsProvider {
     return null;
   }
 
+  @visibleForTesting
+  (String, String) resolveShareAndSub(String remotePath) => _resolveShareAndSub(remotePath);
+
+  (String, String) _resolveShareAndSub(String remotePath) {
+    var clean = remotePath.trim();
+    while (clean.startsWith('/')) {
+      clean = clean.substring(1);
+    }
+    while (clean.endsWith('/')) {
+      clean = clean.substring(0, clean.length - 1);
+    }
+
+    if (clean.isEmpty) {
+      final share = _defaultShare.isNotEmpty ? _defaultShare : 'DATA';
+      return (share, '');
+    }
+
+    final segments = clean.split('/').where((s) => s.isNotEmpty).toList();
+    if (_defaultShare.isNotEmpty) {
+      if (segments.isNotEmpty && segments.first.toLowerCase() == _defaultShare.toLowerCase()) {
+        final sub = segments.skip(1).join('/');
+        return (_defaultShare, sub);
+      } else {
+        return (_defaultShare, clean);
+      }
+    } else {
+      final share = segments.first;
+      final sub = segments.skip(1).join('/');
+      return (share, sub);
+    }
+  }
+
+  Future<void> _ensureDirectoryExists(Smb2Pool pool, String path) async {
+    final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+    String current = '';
+    for (final seg in segments) {
+      current = current.isEmpty ? seg : '$current/$seg';
+      try {
+        await pool.mkdir(current);
+      } catch (_) {
+        // Ignored if directory already exists
+      }
+    }
+  }
+
   @override
   Future<bool> createDirectory(String parentPath, String dirName) async {
     try {
-      final clean = p.join(parentPath, dirName);
-      final segments = clean.split('/').where((s) => s.isNotEmpty).toList();
-      final share = _defaultShare.isNotEmpty ? _defaultShare : segments.first;
-      final sub = _defaultShare.isNotEmpty ? clean : segments.skip(1).join('/');
-
+      final full = parentPath.isEmpty ? dirName : p.join(parentPath, dirName);
+      final (share, sub) = _resolveShareAndSub(full);
       final pool = await _getPoolForShare(share);
-      await pool.mkdir(sub);
+      await _ensureDirectoryExists(pool, sub);
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      LogService.instance.error('SMB_VFS', 'Failed to create directory $dirName in $parentPath: $e', e, st);
       return false;
     }
   }
@@ -318,15 +347,13 @@ class SmbVfs implements VfsProvider {
   @override
   Future<bool> rename(String path, String newName) async {
     try {
-      final segments = path.split('/').where((s) => s.isNotEmpty).toList();
-      final share = _defaultShare.isNotEmpty ? _defaultShare : segments.first;
-      final sub = _defaultShare.isNotEmpty ? path : segments.skip(1).join('/');
+      final (share, sub) = _resolveShareAndSub(path);
       final targetSub = p.join(p.dirname(sub), newName);
-
       final pool = await _getPoolForShare(share);
       await pool.rename(sub, targetSub);
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      LogService.instance.error('SMB_VFS', 'Failed to rename $path to $newName: $e', e, st);
       return false;
     }
   }
@@ -334,17 +361,14 @@ class SmbVfs implements VfsProvider {
   @override
   Future<bool> delete(String path, {bool moveToTrash = true}) async {
     try {
-      final segments = path.split('/').where((s) => s.isNotEmpty).toList();
-      final share = _defaultShare.isNotEmpty ? _defaultShare : segments.first;
-      final sub = _defaultShare.isNotEmpty ? path : segments.skip(1).join('/');
-
-      // Do not allow deleting the share root itself
+      final (share, sub) = _resolveShareAndSub(path);
       if (sub.isEmpty) return false;
 
       final pool = await _getPoolForShare(share);
       await _deleteRecursive(pool, sub);
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      LogService.instance.error('SMB_VFS', 'Failed to delete $path: $e', e, st);
       return false;
     }
   }
@@ -355,7 +379,7 @@ class SmbVfs implements VfsProvider {
       final children = await pool.listDirectory(subPath);
       for (final child in children) {
         if (child.name == '.' || child.name == '..') continue;
-        final childSub = subPath.isEmpty ? child.name : p.join(subPath, child.name);
+        final childSub = subPath.isEmpty ? child.name : '$subPath/${child.name}';
         await _deleteRecursive(pool, childSub);
       }
       await pool.rmdir(subPath);
@@ -364,32 +388,93 @@ class SmbVfs implements VfsProvider {
     }
   }
 
-  Future<bool> writeLocalFile(String remotePath, File localFile) async {
+  Future<bool> writeLocalFile(
+    String remotePath,
+    File localFile, {
+    void Function(int sent, int total)? onProgress,
+    bool Function()? isCanceled,
+  }) async {
+    Smb2PoolHandle? handle;
+    Smb2Pool? pool;
     try {
-      final segments = remotePath.split('/').where((s) => s.isNotEmpty).toList();
-      final share = _defaultShare.isNotEmpty ? _defaultShare : segments.first;
-      final sub = _defaultShare.isNotEmpty ? remotePath : segments.skip(1).join('/');
+      final (share, sub) = _resolveShareAndSub(remotePath);
+      pool = await _getPoolForShare(share);
+      final totalBytes = await localFile.length();
 
-      final pool = await _getPoolForShare(share);
-      final bytes = await localFile.readAsBytes();
-      await pool.writeFile(sub, bytes);
+      LogService.instance.info('SMB_VFS', 'Starting streaming upload to "$share/$sub" ($totalBytes bytes)');
+
+      final parent = p.dirname(sub);
+      if (parent.isNotEmpty && parent != '.' && parent != '/') {
+        await _ensureDirectoryExists(pool, parent);
+      }
+
+      handle = await pool.openFileWrite(sub);
+      try {
+        await pool.ftruncateHandle(handle, 0);
+      } catch (_) {}
+
+      int offset = 0;
+      final stream = localFile.openRead();
+      await for (final chunk in stream) {
+        if (isCanceled?.call() == true) {
+          LogService.instance.warn('SMB_VFS', 'Transfer canceled by user for $sub');
+          throw Exception('Transfer canceled by user');
+        }
+
+        final bytes = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+        await pool.writeToHandle(handle, bytes, offset: offset);
+        offset += bytes.length;
+        onProgress?.call(offset, totalBytes);
+      }
+
+      await pool.closeHandle(handle);
+      handle = null;
+      LogService.instance.info('SMB_VFS', 'Streaming upload completed for "$share/$sub" ($offset / $totalBytes bytes)');
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      LogService.instance.error('SMB_VFS', 'writeLocalFile error for $remotePath: $e', e, st);
+      if (handle != null && pool != null) {
+        try {
+          await pool.closeHandle(handle);
+        } catch (_) {}
+      }
       return false;
     }
   }
 
-  Future<bool> readToLocalFile(String remotePath, File localFile) async {
+  Future<bool> readToLocalFile(
+    String remotePath,
+    File localFile, {
+    void Function(int sent, int total)? onProgress,
+    bool Function()? isCanceled,
+  }) async {
+    IOSink? sink;
     try {
-      final segments = remotePath.split('/').where((s) => s.isNotEmpty).toList();
-      final share = _defaultShare.isNotEmpty ? _defaultShare : segments.first;
-      final sub = _defaultShare.isNotEmpty ? remotePath : segments.skip(1).join('/');
-
+      final (share, sub) = _resolveShareAndSub(remotePath);
       final pool = await _getPoolForShare(share);
-      final bytes = await pool.readFile(sub);
-      await localFile.writeAsBytes(bytes);
+
+      await localFile.parent.create(recursive: true);
+      sink = localFile.openWrite();
+
+      await for (final chunk in pool.streamFile(
+        sub,
+        onProgress: onProgress,
+        isCanceled: isCanceled,
+      )) {
+        sink.add(chunk);
+      }
+
+      await sink.flush();
+      await sink.close();
+      sink = null;
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      LogService.instance.error('SMB_VFS', 'readToLocalFile error for $remotePath: $e', e, st);
+      if (sink != null) {
+        try {
+          await sink.close();
+        } catch (_) {}
+      }
       return false;
     }
   }

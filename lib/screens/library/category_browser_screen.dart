@@ -10,7 +10,9 @@ import '../../services/media/thumbnail_service.dart';
 import '../../services/recycle_bin_service.dart';
 import '../../services/security/safe_vault_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/transfer_manager_service.dart';
 import '../../services/vfs/local_vfs.dart';
+import '../../services/vfs/vfs_provider.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/apple_card.dart';
 import '../../widgets/file_tile.dart';
@@ -71,12 +73,26 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
   // Multi-select state
   bool _isSelectionMode = false;
   final Set<String> _selectedPaths = {};
+  dynamic _transferSub;
 
   @override
   void initState() {
     super.initState();
     _isGrid = SettingsService.instance.isGridView;
     _currentItems = List.from(widget.items);
+    _transferSub = TransferManagerService.instance.onTransferFinished.listen((_) {
+      if (mounted) {
+        setState(() {
+          _currentItems.removeWhere((item) => !File(item.path).existsSync() && !Directory(item.path).existsSync());
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _transferSub?.cancel();
+    super.dispose();
   }
 
   String _formatBytes(int bytes) {
@@ -631,6 +647,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
   Future<void> _handleBatchTransfer({required bool isMove}) async {
     final selected = _selectedNodes;
     if (selected.isEmpty) return;
+    final selectedPaths = Set<String>.from(_selectedPaths);
 
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -645,78 +662,33 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
 
     if (result == null || !mounted) return;
 
-    final targetPath = result['path'] as String;
-    final targetVfs = result['vfs'];
+    final targetPath = (result['targetPath'] ?? result['path']) as String;
+    final targetVfs = (result['targetVfs'] ?? result['vfs']) as VfsProvider;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: isDark ? AppleColors.darkCard : AppleColors.lightCard,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CupertinoActivityIndicator(radius: 14),
-              const SizedBox(height: 16),
-              Text(
-                isMove ? 'Moving items...' : 'Copying items...',
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+    setState(() {
+      if (isMove) {
+        _currentItems.removeWhere((e) => selectedPaths.contains(e.path));
+      }
+      _selectedPaths.clear();
+      _isSelectionMode = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${isMove ? "Moving" : "Copying"} ${selected.length} items to ${targetVfs.displayName}...',
         ),
+        duration: const Duration(seconds: 3),
       ),
     );
 
-    final success = isMove
-        ? await FileOperationService.instance.moveItems(
-            items: selected,
-            targetDirPath: targetPath,
-            targetVfs: targetVfs,
-            sourceVfs: widget.localVfs,
-          )
-        : await FileOperationService.instance.copyItems(
-            items: selected,
-            targetDirPath: targetPath,
-            targetVfs: targetVfs,
-            sourceVfs: widget.localVfs,
-          );
-
-    if (mounted) {
-      Navigator.pop(context); // Dismiss progress
-      if (isMove && success) {
-        setState(() {
-          _currentItems.removeWhere((e) => _selectedPaths.contains(e.path));
-          _selectedPaths.clear();
-          _isSelectionMode = false;
-        });
-      } else {
-        setState(() {
-          _selectedPaths.clear();
-          _isSelectionMode = false;
-        });
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? (isMove ? 'Moved ${selected.length} items' : 'Copied ${selected.length} items')
-                : 'Operation completed with some errors',
-          ),
-        ),
-      );
-    }
+    await TransferManagerService.instance.startTransfer(
+      items: selected,
+      targetDirPath: targetPath,
+      targetVfs: targetVfs,
+      sourceVfs: widget.localVfs,
+      isMove: isMove,
+    );
   }
 
   void _showSingleNodeOptions(VfsNode node) {

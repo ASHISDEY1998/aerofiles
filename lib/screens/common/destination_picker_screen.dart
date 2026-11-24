@@ -5,7 +5,9 @@ import '../../models/network_connection.dart';
 import '../../models/vfs_node.dart';
 import '../../services/settings_service.dart';
 import '../../services/vfs/local_vfs.dart';
+import '../../services/vfs/sftp_vfs.dart';
 import '../../services/vfs/smb_vfs.dart';
+import '../../services/vfs/webdav_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/breadcrumb_bar.dart';
@@ -32,8 +34,9 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
   late String _currentPath;
   List<VfsNode> _folders = [];
   bool _isLoading = true;
+  bool _isReturningTarget = false;
 
-  SmbVfs? _activeSmbVfs;
+  VfsProvider? _activeNetworkVfs;
   NetworkConnection? _selectedConnection;
 
   List<NetworkConnection> get _availableConnections {
@@ -45,13 +48,20 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
     super.initState();
     _currentVfs = widget.localVfs;
     _currentPath = widget.localVfs.rootPath;
-    _selectedConnection = _availableConnections.first;
+    _selectedConnection = _availableConnections.isNotEmpty ? _availableConnections.first : null;
     _loadDirectory();
   }
 
   @override
   void dispose() {
-    _activeSmbVfs?.dispose();
+    // Only dispose if we are NOT handing this active VFS off to the caller for transfer
+    if (!_isReturningTarget) {
+      if (_activeNetworkVfs is SmbVfs) {
+        (_activeNetworkVfs as SmbVfs).dispose();
+      } else if (_activeNetworkVfs is SftpVfs) {
+        (_activeNetworkVfs as SftpVfs).dispose();
+      }
+    }
     super.dispose();
   }
 
@@ -89,18 +99,36 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
     _loadDirectory();
   }
 
-  Future<void> _connectToSmb(NetworkConnection conn) async {
+  Future<void> _connectToNetwork(NetworkConnection conn) async {
     setState(() {
       _isLoading = true;
       _selectedConnection = conn;
     });
-    _activeSmbVfs?.dispose();
-    final smb = SmbVfs(conn);
+
+    if (_activeNetworkVfs is SmbVfs) {
+      (_activeNetworkVfs as SmbVfs).dispose();
+    } else if (_activeNetworkVfs is SftpVfs) {
+      (_activeNetworkVfs as SftpVfs).dispose();
+    }
+    _activeNetworkVfs = null;
+
     try {
-      await smb.connect();
-      _activeSmbVfs = smb;
-      _currentVfs = smb;
-      _currentPath = smb.rootPath;
+      if (conn.protocol == ProtocolType.smb) {
+        final smb = SmbVfs(conn);
+        await smb.connect();
+        _activeNetworkVfs = smb;
+      } else if (conn.protocol == ProtocolType.sftp) {
+        final sftp = SftpVfs(conn);
+        _activeNetworkVfs = sftp;
+      } else if (conn.protocol == ProtocolType.webdav) {
+        final webdav = WebDavVfs(conn);
+        _activeNetworkVfs = webdav;
+      } else {
+        throw Exception('Unsupported network protocol: ${conn.protocolName}');
+      }
+
+      _currentVfs = _activeNetworkVfs!;
+      _currentPath = _activeNetworkVfs!.rootPath;
       await _loadDirectory();
     } catch (e) {
       if (mounted) {
@@ -122,7 +150,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
           return CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(ctx);
-              _connectToSmb(conn);
+              _connectToNetwork(conn);
             },
             child: Text(
               '${conn.name} (${conn.host})',
@@ -186,7 +214,9 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bool isSmbRoot = _selectedTab == 1 && _currentPath.isEmpty;
+    final bool isSmbRoot = _selectedTab == 1 &&
+        _currentVfs is SmbVfs &&
+        (_currentPath.isEmpty || _currentPath == '/');
 
     return Scaffold(
       backgroundColor: isDark ? AppleColors.pureBlack : AppleColors.lightBackground,
@@ -246,13 +276,13 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
                     _currentPath = widget.localVfs.rootPath;
                     _loadDirectory();
                   } else {
-                    if (_activeSmbVfs != null) {
-                      _currentVfs = _activeSmbVfs!;
-                      _currentPath = _activeSmbVfs!.rootPath;
+                    if (_activeNetworkVfs != null) {
+                      _currentVfs = _activeNetworkVfs!;
+                      _currentPath = _activeNetworkVfs!.rootPath;
                       _loadDirectory();
-                    } else {
+                    } else if (_availableConnections.isNotEmpty) {
                       final conn = _selectedConnection ?? _availableConnections.first;
-                      _connectToSmb(conn);
+                      _connectToNetwork(conn);
                     }
                   }
                 },
@@ -450,9 +480,12 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
                     onPressed: isSmbRoot
                         ? null
                         : () {
+                            _isReturningTarget = true;
                             Navigator.pop(context, {
                               'targetPath': _currentPath,
                               'targetVfs': _currentVfs,
+                              'path': _currentPath,
+                              'vfs': _currentVfs,
                             });
                           },
                     child: Text(

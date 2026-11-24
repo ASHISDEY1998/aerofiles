@@ -467,7 +467,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         showLicensePage(
                           context: context,
                           applicationName: 'AeroFiles',
-                          applicationVersion: '1.0.12',
+                          applicationVersion: '1.0.13',
                         );
                       },
                     ),
@@ -488,7 +488,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: FutureBuilder<PackageInfo>(
                         future: PackageInfo.fromPlatform(),
                         builder: (context, snapshot) {
-                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.12';
+                          final version = snapshot.hasData ? snapshot.data!.version : '1.0.13';
                           final build = snapshot.hasData ? snapshot.data!.buildNumber : '13';
                           return Text(
                             '$version (Build $build)',
@@ -747,10 +747,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final tempFile = File('${tempDir.path}/aerofiles_diagnostic_log.txt');
       await tempFile.writeAsString(content, flush: true);
 
-      await Share.shareXFiles(
-        [XFile(tempFile.path)],
-        subject: 'AeroFiles Diagnostic Log',
-        text: 'AeroFiles Diagnostic Log export',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(tempFile.path)],
+          subject: 'AeroFiles Diagnostic Log',
+          text: 'AeroFiles Diagnostic Log export',
+        ),
       );
     } catch (e) {
       if (mounted) {

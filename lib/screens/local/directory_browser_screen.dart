@@ -8,6 +8,7 @@ import '../../services/file_operation_service.dart';
 import '../../services/recycle_bin_service.dart';
 import '../../services/security/safe_vault_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/transfer_manager_service.dart';
 import '../../services/vfs/local_vfs.dart';
 import '../../services/vfs/vfs_provider.dart';
 import '../../theme/apple_theme.dart';
@@ -53,13 +54,23 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
   // Subfolder navigation history
   final List<String> _navigationHistory = [];
   String? _errorMessage;
+  dynamic _transferSub;
 
   @override
   void initState() {
     super.initState();
     _isGrid = SettingsService.instance.isGridView;
     _currentPath = widget.initialPath;
+    _transferSub = TransferManagerService.instance.onTransferFinished.listen((_) {
+      if (mounted) _loadDirectory();
+    });
     _loadDirectory();
+  }
+
+  @override
+  void dispose() {
+    _transferSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadDirectory() async {
@@ -739,45 +750,31 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     );
 
     if (result != null && mounted) {
-      final targetPath = result['targetPath'] as String;
-      final targetVfs = result['targetVfs'] as VfsProvider;
+      final targetPath = (result['targetPath'] ?? result['path']) as String;
+      final targetVfs = (result['targetVfs'] ?? result['vfs']) as VfsProvider;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${isMove ? "Moving" : "Copying"} ${selected.length} items to ${targetVfs.displayName}...'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      final ops = FileOperationService.instance;
-      if (isMove) {
-        await ops.moveItems(
-          items: selected,
-          targetDirPath: targetPath,
-          targetVfs: targetVfs,
-          sourceVfs: widget.vfs,
-        );
-      } else {
-        await ops.copyItems(
-          items: selected,
-          targetDirPath: targetPath,
-          targetVfs: targetVfs,
-          sourceVfs: widget.vfs,
-        );
-      }
-
-      _loadDirectory();
       setState(() {
         _selectedPaths.clear();
         _isSelectionMode = false;
       });
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${isMove ? "Moving" : "Copying"} ${selected.length} items to ${targetVfs.displayName}...'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      await TransferManagerService.instance.startTransfer(
+        items: selected,
+        targetDirPath: targetPath,
+        targetVfs: targetVfs,
+        sourceVfs: widget.vfs,
+        isMove: isMove,
+      );
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${selected.length} items successfully ${isMove ? "moved" : "copied"}!'),
-          ),
-        );
+        _loadDirectory();
       }
     }
   }

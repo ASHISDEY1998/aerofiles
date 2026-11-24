@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.12_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v1.0.13_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -26,7 +26,7 @@
 
 ---
 
-## 📲 Direct Downloads (v1.0.12 / Build 13)
+## 📲 Direct Downloads (v1.0.13 / Build 14)
 
 Download the official standalone release for your device architecture:
 
@@ -96,12 +96,15 @@ Download the official standalone release for your device architecture:
 * **SMB 2/3 Protocol Support:** Connect directly to Windows shared folders, Samba shares, TrueNAS, Unraid, Synology, and QNAP network attached storage.
 * **SFTP / SSH Storage:** Secure file transfers over SSH using password or private key authentication.
 * **WebDAV Support:** Connect to Nextcloud, ownCloud, and local WebDAV storage drives.
+* **Zero-RAM Chunked Streaming Uploads:** Multi-gigabyte videos stream in 64 KB chunks directly to SMB, SFTP, and WebDAV servers with zero RAM overhead, completely preventing OutOfMemory errors and packet drops.
+* **Safe Move Semantics:** When moving files from device to network drives, local source files are strictly retained until the remote destination write is verified and complete.
 * **Zero-Download Remote Streaming:** Stream multi-gigabyte high-bitrate movies directly from your home NAS with byte-range seeking over local Wi-Fi.
 * **PC Web Transfer Server:** Built-in lightweight HTTP server allows browsing, uploading, and downloading phone files from any desktop browser on the local network.
 
 ---
 
-### 🛡️ 5. Background File Operations & Safeguards
+### 🛡️ 5. Background File Operations & Floating Progress Bubble
+* **Floating Live Transfer Progress Bubble:** An animated glassmorphic bubble appears at the bottom right whenever file transfers begin. Tapping it opens a dedicated screen showing per-item progress bars, transfer speeds (MB/s), total megabytes, and cancel controls.
 * **Foreground Service Ongoing Notification:** File operations (copying, moving, downloading multi-gigabyte folders) are bound to an ongoing notification (`FOREGROUND_SERVICE_DATA_SYNC`) showing live progress bars, speed, and an instant Cancel button so Android never kills the task.
 * **4-Second "Undo" Action on Delete:** Accidental deletions trigger a floating 4-second banner allowing one-tap recovery without visiting the Recycle Bin.
 * **Duplicate File Detector:** Built into the Storage Analyzer, identifying duplicate files sharing identical byte sizes and MD5/CRC32 checksums to reclaim wasted storage.

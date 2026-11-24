@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:path/path.dart' as p;
 import '../../models/network_connection.dart';
 import '../../models/vfs_node.dart';
+import '../log_service.dart';
 import 'vfs_provider.dart';
 
 class SftpVfs implements VfsProvider {
@@ -120,6 +123,121 @@ class SftpVfs implements VfsProvider {
 
   @override
   Future<bool> move(String sourcePath, String destPath, {void Function(double)? onProgress}) async => false;
+
+  Future<void> _ensureDirectoryExists(SftpClient sftp, String path) async {
+    final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+    String current = path.startsWith('/') ? '/' : '';
+    for (final seg in segments) {
+      current = current == '/' ? '/$seg' : (current.isEmpty ? seg : '$current/$seg');
+      try {
+        await sftp.mkdir(current);
+      } catch (_) {}
+    }
+  }
+
+  Future<bool> writeLocalFile(
+    String remotePath,
+    File localFile, {
+    void Function(int sent, int total)? onProgress,
+    bool Function()? isCanceled,
+  }) async {
+    SftpFile? sftpFile;
+    try {
+      final sftp = await _getSftp();
+      final totalBytes = await localFile.length();
+
+      final parent = p.dirname(remotePath);
+      if (parent.isNotEmpty && parent != '/' && parent != '.') {
+        await _ensureDirectoryExists(sftp, parent);
+      }
+
+      sftpFile = await sftp.open(
+        remotePath,
+        mode: SftpFileOpenMode.create | SftpFileOpenMode.truncate | SftpFileOpenMode.write,
+      );
+
+      int offset = 0;
+      final stream = localFile.openRead();
+      await for (final chunk in stream) {
+        if (isCanceled?.call() == true) {
+          throw Exception('Transfer canceled by user');
+        }
+        final bytes = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+        await sftpFile.write(Stream.value(bytes), offset: offset).done;
+        offset += bytes.length;
+        onProgress?.call(offset, totalBytes);
+      }
+
+      await sftpFile.close();
+      sftpFile = null;
+      return true;
+    } catch (e, st) {
+      LogService.instance.error('SFTP_VFS', 'writeLocalFile failed for $remotePath: $e', e, st);
+      if (sftpFile != null) {
+        try {
+          await sftpFile.close();
+        } catch (_) {}
+      }
+      return false;
+    }
+  }
+
+  Future<bool> readToLocalFile(
+    String remotePath,
+    File localFile, {
+    void Function(int sent, int total)? onProgress,
+    bool Function()? isCanceled,
+  }) async {
+    SftpFile? sftpFile;
+    IOSink? sink;
+    try {
+      final sftp = await _getSftp();
+      final stat = await sftp.stat(remotePath);
+      final totalBytes = stat.size ?? 0;
+
+      await localFile.parent.create(recursive: true);
+      sink = localFile.openWrite();
+      sftpFile = await sftp.open(remotePath, mode: SftpFileOpenMode.read);
+
+      await for (final chunk in sftpFile.read(
+        onProgress: (bytesRead) {
+          onProgress?.call(bytesRead, totalBytes);
+        },
+      )) {
+        if (isCanceled?.call() == true) {
+          throw Exception('Transfer canceled by user');
+        }
+        sink.add(chunk);
+      }
+
+      await sink.flush();
+      await sink.close();
+      sink = null;
+      await sftpFile.close();
+      sftpFile = null;
+      return true;
+    } catch (e, st) {
+      LogService.instance.error('SFTP_VFS', 'readToLocalFile failed for $remotePath: $e', e, st);
+      if (sink != null) {
+        try {
+          await sink.close();
+        } catch (_) {}
+      }
+      if (sftpFile != null) {
+        try {
+          await sftpFile.close();
+        } catch (_) {}
+      }
+      return false;
+    }
+  }
+
+  void dispose() {
+    _sftp?.close();
+    _sftp = null;
+    _client?.close();
+    _client = null;
+  }
 
   @override
   Future<String> getPlaybackUri(String path) async {

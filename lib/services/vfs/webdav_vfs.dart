@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:webdav_client/webdav_client.dart' as webdav;
 import '../../models/network_connection.dart';
 import '../../models/vfs_node.dart';
+import '../log_service.dart';
 import 'vfs_provider.dart';
 
 class WebDavVfs implements VfsProvider {
@@ -100,6 +102,64 @@ class WebDavVfs implements VfsProvider {
   Future<bool> move(String sourcePath, String destPath, {void Function(double)? onProgress}) async {
     return false;
   }
+
+  Future<bool> writeLocalFile(
+    String remotePath,
+    File localFile, {
+    void Function(int sent, int total)? onProgress,
+    bool Function()? isCanceled,
+  }) async {
+    try {
+      final parent = p.dirname(remotePath);
+      if (parent.isNotEmpty && parent != '/' && parent != '.') {
+        try {
+          await _client.mkdir(parent);
+        } catch (_) {}
+      }
+
+      await _client.writeFromFile(
+        localFile.path,
+        remotePath,
+        onProgress: (sent, total) {
+          if (isCanceled?.call() == true) {
+            throw Exception('Transfer canceled by user');
+          }
+          onProgress?.call(sent, total);
+        },
+      );
+      return true;
+    } catch (e, st) {
+      LogService.instance.error('WEBDAV_VFS', 'writeLocalFile failed for $remotePath: $e', e, st);
+      return false;
+    }
+  }
+
+  Future<bool> readToLocalFile(
+    String remotePath,
+    File localFile, {
+    void Function(int sent, int total)? onProgress,
+    bool Function()? isCanceled,
+  }) async {
+    try {
+      await localFile.parent.create(recursive: true);
+      await _client.read2File(
+        remotePath,
+        localFile.path,
+        onProgress: (sent, total) {
+          if (isCanceled?.call() == true) {
+            throw Exception('Transfer canceled by user');
+          }
+          onProgress?.call(sent, total);
+        },
+      );
+      return true;
+    } catch (e, st) {
+      LogService.instance.error('WEBDAV_VFS', 'readToLocalFile failed for $remotePath: $e', e, st);
+      return false;
+    }
+  }
+
+  void dispose() {}
 
   @override
   Future<String> getPlaybackUri(String path) async {

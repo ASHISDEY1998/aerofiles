@@ -9,6 +9,7 @@ import 'services/security/safe_vault_service.dart';
 import 'services/settings_service.dart';
 import 'theme/apple_theme.dart';
 import 'widgets/app_lock_overlay.dart';
+import 'widgets/transfer_progress_bubble.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,7 +72,11 @@ class AeroFilesApp extends StatelessWidget {
           theme: AppleTheme.lightTheme,
           darkTheme: AppleTheme.darkTheme,
           home: const HomeShell(),
-          builder: (context, child) => AppLockOverlay(child: child ?? const SizedBox.shrink()),
+          builder: (context, child) => AppLockOverlay(
+            child: TransferProgressOverlay(
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
         );
       },
     );
