@@ -118,10 +118,16 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
               },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(CupertinoIcons.folder_badge_person_crop, size: 18),
                   SizedBox(width: 8),
-                  Text('Browse Shared Folders'),
+                  Flexible(
+                    child: Text(
+                      'Browse Shared Folders',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -133,10 +139,16 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
               },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(CupertinoIcons.lock_shield, size: 18),
                   SizedBox(width: 8),
-                  Text('Pair with PIN'),
+                  Flexible(
+                    child: Text(
+                      'Pair with PIN',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -152,10 +164,16 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
               },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(CupertinoIcons.lock_open, size: 18),
                   SizedBox(width: 8),
-                  Text('Forget Pairing (Unpair)'),
+                  Flexible(
+                    child: Text(
+                      'Forget Pairing (Unpair)',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -170,10 +188,16 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(CupertinoIcons.trash, size: 18),
                 SizedBox(width: 8),
-                Text('Forget & Remove Device'),
+                Flexible(
+                  child: Text(
+                    'Forget & Remove Device',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),

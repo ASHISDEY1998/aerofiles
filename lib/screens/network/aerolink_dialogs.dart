@@ -163,12 +163,19 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
               Navigator.pop(ctx);
               _openStoragePicker(AeroLinkPickerMode.folder);
             },
-            child: Row(
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Icon(CupertinoIcons.folder_badge_plus, size: 18, color: AppleColors.systemBlue),
                 SizedBox(width: 8),
-                Text('Browse & Pick Any Folder...', style: TextStyle(fontWeight: FontWeight.bold)),
+                Flexible(
+                  child: Text(
+                    'Pick Any Folder...',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -177,12 +184,19 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
               Navigator.pop(ctx);
               _openStoragePicker(AeroLinkPickerMode.file);
             },
-            child: Row(
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Icon(CupertinoIcons.doc_fill, size: 18, color: AppleColors.systemGreen),
                 SizedBox(width: 8),
-                Text('Browse & Pick Any File...', style: TextStyle(fontWeight: FontWeight.bold)),
+                Flexible(
+                  child: Text(
+                    'Pick Any File...',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -201,10 +215,16 @@ class _AeroLinkSharesSheetState extends State<AeroLinkSharesSheet> {
               },
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(CupertinoIcons.folder, size: 16),
                   const SizedBox(width: 8),
-                  Text(c['name']!),
+                  Flexible(
+                    child: Text(
+                      c['name']!,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),

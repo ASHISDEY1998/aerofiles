@@ -751,11 +751,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 if (_settings.deleteBehavior == DeleteBehavior.ask)
-                  const Icon(CupertinoIcons.check_mark, size: 16),
-                const SizedBox(width: 8),
-                const Text('Always ask each time'),
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(CupertinoIcons.check_mark, size: 16),
+                  ),
+                const Flexible(
+                  child: Text(
+                    'Always ask each time',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -766,11 +774,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 if (_settings.deleteBehavior == DeleteBehavior.recycleBin)
-                  const Icon(CupertinoIcons.check_mark, size: 16),
-                const SizedBox(width: 8),
-                const Text('Move to Recycle Bin (Recommended)'),
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(CupertinoIcons.check_mark, size: 16),
+                  ),
+                const Flexible(
+                  child: Text(
+                    'Move to Recycle Bin',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -782,11 +798,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 if (_settings.deleteBehavior == DeleteBehavior.permanent)
-                  const Icon(CupertinoIcons.check_mark, size: 16),
-                const SizedBox(width: 8),
-                const Text('Delete permanently'),
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(CupertinoIcons.check_mark, size: 16),
+                  ),
+                const Flexible(
+                  child: Text(
+                    'Delete permanently',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -813,10 +837,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(CupertinoIcons.cloud_upload_fill, size: 18),
                 SizedBox(width: 8),
-                Text('Upload & Get Shareable Cloud Link'),
+                Flexible(
+                  child: Text(
+                    'Upload & Get Cloud Link',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -827,10 +857,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(CupertinoIcons.share, size: 18),
                 SizedBox(width: 8),
-                Text('Share File via Apps (Email, Drive, Chat)'),
+                Flexible(
+                  child: Text(
+                    'Share via Other Apps',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -841,10 +877,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(CupertinoIcons.arrow_down_doc_fill, size: 18),
                 SizedBox(width: 8),
-                Text('Save to Device Downloads Folder'),
+                Flexible(
+                  child: Text(
+                    'Save to Downloads',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -861,10 +903,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(CupertinoIcons.doc_on_clipboard_fill, size: 18),
                 SizedBox(width: 8),
-                Text('Copy All Text to Clipboard'),
+                Flexible(
+                  child: Text(
+                    'Copy to Clipboard',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),

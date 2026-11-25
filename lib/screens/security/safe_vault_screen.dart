@@ -116,7 +116,7 @@ class _SafeVaultScreenState extends State<SafeVaultScreen> {
           modified: item.dateAdded,
           isDirectory: false,
         );
-        await Navigator.push(
+        final deleted = await Navigator.push<bool>(
           context,
           CupertinoPageRoute(
             builder: (_) => ImageViewerScreen(
@@ -125,6 +125,9 @@ class _SafeVaultScreenState extends State<SafeVaultScreen> {
             ),
           ),
         );
+        if (deleted == true && mounted) {
+          setState(() {});
+        }
       } else {
         final result = await OpenFilex.open(file.path);
         if (result.type != ResultType.done && mounted) {

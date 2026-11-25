@@ -271,7 +271,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     } else if (node.isImage) {
       final allImages = _displayItems.where((e) => e.isImage).toList();
       final index = allImages.indexWhere((e) => e.path == node.path);
-      Navigator.push(
+      final deleted = await Navigator.push<bool>(
         context,
         CupertinoPageRoute(
           builder: (_) => ImageViewerScreen(
@@ -281,6 +281,21 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
           ),
         ),
       );
+      if (deleted == true && mounted) {
+        final existing = <VfsNode>[];
+        for (final item in _currentItems) {
+          if (await File(item.path).exists()) {
+            existing.add(item);
+          }
+        }
+        setState(() {
+          _currentItems = existing;
+          if (_selectedFolderGroup != null &&
+              !existing.any((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath)) {
+            _selectedFolderGroup = null;
+          }
+        });
+      }
     } else {
       try {
         await OpenFilex.open(node.path);
@@ -796,10 +811,16 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(CupertinoIcons.share, size: 18),
                 SizedBox(width: 8),
-                Text('Share File'),
+                Flexible(
+                  child: Text(
+                    'Share File',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -811,10 +832,16 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
               },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(CupertinoIcons.arrow_up_right_square, size: 18),
                   SizedBox(width: 8),
-                  Text('Open with...'),
+                  Flexible(
+                    child: Text(
+                      'Open with...',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -826,10 +853,17 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
               },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(CupertinoIcons.scissors, size: 18, color: AppleColors.systemBlue),
                   SizedBox(width: 8),
-                  Text('Trim Video', style: TextStyle(color: AppleColors.systemBlue)),
+                  Flexible(
+                    child: Text(
+                      'Trim Video',
+                      style: TextStyle(color: AppleColors.systemBlue),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -844,10 +878,16 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(CupertinoIcons.doc_on_doc, size: 18),
                 SizedBox(width: 8),
-                Text('Copy to...'),
+                Flexible(
+                  child: Text(
+                    'Copy to...',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -862,10 +902,16 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(CupertinoIcons.arrow_right_arrow_left, size: 18),
                 SizedBox(width: 8),
-                Text('Move to...'),
+                Flexible(
+                  child: Text(
+                    'Move to...',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -877,10 +923,17 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
               },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(CupertinoIcons.lock_shield_fill, size: 18, color: AppleColors.systemIndigo),
                   SizedBox(width: 8),
-                  Text('Move to Safe Vault', style: TextStyle(color: AppleColors.systemIndigo)),
+                  Flexible(
+                    child: Text(
+                      'Move to Safe Vault',
+                      style: TextStyle(color: AppleColors.systemIndigo),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
