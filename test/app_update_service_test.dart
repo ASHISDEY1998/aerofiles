@@ -59,5 +59,35 @@ void main() {
       );
       expect(hasOlderDateUpdate, isFalse);
     });
+
+    test('isUpdateAvailable returns false when versions are identical on user device', () {
+      final hasUpdate = AppUpdateService.isUpdateAvailable(
+        remoteTag: 'v2.2.1',
+        localVersion: '2.2.1',
+        localBuildNumber: '25',
+        remotePublishedAt: DateTime.utc(2026, 11, 25, 13, 0, 0),
+      );
+      expect(hasUpdate, isFalse);
+    });
+
+    test('isUpdateAvailable detects higher build number when SemVer is identical', () {
+      final hasHigherBuild = AppUpdateService.isUpdateAvailable(
+        remoteTag: 'v2.2.1',
+        localVersion: '2.2.1',
+        localBuildNumber: '25',
+        releaseTitle: 'AeroFiles v2.2.1 (Build 26)',
+        remotePublishedAt: DateTime.utc(2026, 11, 25, 14, 0, 0),
+      );
+      expect(hasHigherBuild, isTrue);
+
+      final hasSameBuild = AppUpdateService.isUpdateAvailable(
+        remoteTag: 'v2.2.1',
+        localVersion: '2.2.1',
+        localBuildNumber: '25',
+        releaseTitle: 'AeroFiles v2.2.1 (Build 25)',
+        remotePublishedAt: DateTime.utc(2026, 11, 25, 14, 0, 0),
+      );
+      expect(hasSameBuild, isFalse);
+    });
   });
 }

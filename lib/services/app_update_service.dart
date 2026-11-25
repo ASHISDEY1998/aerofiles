@@ -39,8 +39,7 @@ class AppUpdateService {
   static const String _releasesApiUrl =
       'https://api.github.com/repos/ASHISDEY1998/aerofiles/releases/latest';
 
-  /// Release compilation timestamp (UTC) for the installed build.
-  /// Used for release date/time comparison alongside SemVer.
+  /// Release compilation timestamp (UTC) for legacy testing.
   static final DateTime localReleaseDate = DateTime.utc(2026, 11, 24, 23, 56, 0);
 
   bool _isChecking = false;
@@ -71,31 +70,48 @@ class AppUpdateService {
     return 0;
   }
 
-  /// Determines whether an update is available by evaluating both
-  /// Semantic Versioning and the Release Published Timestamp.
-  /// This ensures updates are reliably detected by release date/time
-  /// rather than depending solely on version ID strings.
+  /// Determines whether an update is available by evaluating Semantic Versioning,
+  /// build numbers, and optional explicit build dates.
+  /// Prevents false positives where identical versions trigger update prompts.
   static bool isUpdateAvailable({
     required String remoteTag,
     required String localVersion,
     required String localBuildNumber,
     required DateTime? remotePublishedAt,
     DateTime? localBuildDate,
+    String? releaseTitle,
   }) {
     // 1. Semantic Version comparison
     final semVerComparison = compareVersions(remoteTag, localVersion);
     if (semVerComparison > 0) return true;
     if (semVerComparison < 0) return false;
 
-    // 2. If SemVer versions are equal, check the release published timestamp
-    if (remotePublishedAt != null) {
-      final baseDate = localBuildDate ?? localReleaseDate;
-      // If remote release was published after the local build date (+10 min buffer)
-      if (remotePublishedAt.isAfter(baseDate.add(const Duration(minutes: 10)))) {
+    // 2. If SemVer versions are identical, compare build numbers if present
+    int? remoteBuild;
+    if (remoteTag.contains('+')) {
+      remoteBuild = int.tryParse(remoteTag.split('+').last);
+    }
+    if (remoteBuild == null && releaseTitle != null) {
+      final match = RegExp(r'Build\s+(\d+)', caseSensitive: false).firstMatch(releaseTitle);
+      if (match != null) {
+        remoteBuild = int.tryParse(match.group(1)!);
+      }
+    }
+    final localBuild = int.tryParse(localBuildNumber);
+    if (remoteBuild != null && localBuild != null) {
+      if (remoteBuild > localBuild) return true;
+      if (remoteBuild <= localBuild) return false;
+    }
+
+    // 3. If an explicit localBuildDate is passed (e.g. unit tests or custom CI),
+    // check if remote was published after local build date (+10 min buffer)
+    if (localBuildDate != null && remotePublishedAt != null) {
+      if (remotePublishedAt.isAfter(localBuildDate.add(const Duration(minutes: 10)))) {
         return true;
       }
     }
 
+    // 4. Default: identical versions with no newer build are already up-to-date
     return false;
   }
 
@@ -191,6 +207,7 @@ class AppUpdateService {
         localVersion: currentVersion,
         localBuildNumber: currentBuildNumber,
         remotePublishedAt: publishedAt,
+        releaseTitle: releaseTitle,
       ) && apkUrl.isNotEmpty;
 
       return AppUpdateInfo(
@@ -230,6 +247,9 @@ class AppUpdateService {
 
   void promptUpdate(BuildContext context, AppUpdateInfo info) {
     if (_isDialogShowing) return;
+    if (!info.hasUpdate) return;
+    // Safety check: Never show update dialog if current and latest versions are identical
+    if (info.currentVersion == info.latestVersion) return;
     _isDialogShowing = true;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/app_update_service.dart';
 import '../services/recycle_bin_service.dart';
@@ -121,13 +122,19 @@ class _HomeShellState extends State<HomeShell> {
                           color: isDark ? Colors.white : AppleColors.textPrimaryLight,
                         ),
                       ),
-                      Text(
-                        'v2.0.0 Pro',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
-                        ),
+                      FutureBuilder<PackageInfo>(
+                        future: PackageInfo.fromPlatform(),
+                        builder: (context, snapshot) {
+                          final version = snapshot.data?.version ?? '2.2.2';
+                          return Text(
+                            'v$version Pro',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

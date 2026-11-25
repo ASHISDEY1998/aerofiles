@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.1_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.2_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 📲 Direct Downloads (v2.2.1 / Build 25)
+## 📲 Direct Downloads (v2.2.2 / Build 26)
 
 Download the official standalone release for your device architecture:
 
@@ -169,6 +169,12 @@ Download the official standalone release for your device architecture:
 ### 🛡️ 12. Home Server Read-Write Permissions & Apple Toaster Enhancements (v2.2.1)
 * **Full Home Server Read-Write Access:** Fixed regression where SMB, WebDAV, SFTP, and FTP shares were incorrectly marked read-only. Full deletion and folder management restored across all local network storage (AeroLink device-to-device remains safe read-only mesh).
 * **Apple OLED Toasters & Smooth Dismissal:** Replaced white Material 3 default snackbars with sleek `#1C1C1E` dark cards, subtle borders, and crisp white typography. Guaranteed 4-second auto-close timeout with native swipe/pull down to dismiss immediately.
+
+---
+
+### 🔄 13. Smart Version Detection & Upgrade Loop Elimination (v2.2.2)
+* **Accurate Version Check Logic:** Eliminated false-positive update alerts (e.g. `v2.2.1 ➔ v2.2.1`) caused by stale hardcoded timestamps. An update is now strictly offered only when remote SemVer or build number is higher.
+* **Dynamic Sidebar Versioning:** Replaced hardcoded version strings in the tablet navigation sidebar and license screens with live metadata from `PackageInfo`.
 
 ---
 

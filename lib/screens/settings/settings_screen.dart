@@ -673,7 +673,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           showLicensePage(
                             context: context,
                             applicationName: 'AeroFiles',
-                            applicationVersion: '2.1.6',
+                            applicationVersion: '2.2.2',
                           );
                         },
                         isDark: isDark,
