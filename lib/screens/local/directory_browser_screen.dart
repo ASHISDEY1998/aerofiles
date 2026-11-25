@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -349,26 +350,34 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
     );
   }
 
-  bool get _isReadOnly => widget.vfs is AeroLinkVfs || (widget.vfs is! LocalVfs);
+  bool get _isReadOnly => widget.vfs is AeroLinkVfs;
 
   void _showReadOnlyAlert() {
-    ScaffoldMessenger.of(context).removeCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.removeCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
+        backgroundColor: AppleColors.darkCard,
         behavior: SnackBarBehavior.floating,
         dismissDirection: DismissDirection.down,
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
         content: const Row(
           children: [
             Icon(CupertinoIcons.exclamationmark_circle, color: AppleColors.systemOrange, size: 20),
             SizedBox(width: 8),
             Expanded(
-              child: Text('Cannot modify remote files. AeroLink storage is read-only.'),
+              child: Text(
+                'Cannot modify remote files. AeroLink storage is read-only.',
+                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+              ),
             ),
           ],
         ),
       ),
     );
+    Timer(const Duration(seconds: 4), () {
+      messenger.hideCurrentSnackBar();
+    });
   }
 
   void _showCreateFolderDialog() {
@@ -612,31 +621,21 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       _isSelectionMode = false;
     });
     if (mounted) {
-      ScaffoldMessenger.of(context).removeCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.removeCurrentSnackBar();
+      messenger.showSnackBar(
         SnackBar(
+          backgroundColor: AppleColors.darkCard,
           behavior: SnackBarBehavior.floating,
           dismissDirection: DismissDirection.down,
           duration: const Duration(seconds: 4),
-          content: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onVerticalDragEnd: (details) {
-              if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              }
-            },
-            onVerticalDragUpdate: (details) {
-              if (details.delta.dy > 3) {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              }
-            },
-            child: Text(
-              moveToTrash
-                  ? (selected.length == 1
-                      ? '"${selected.first.name}" moved to Recycle Bin'
-                      : '${selected.length} items moved to Recycle Bin')
-                  : '${selected.length} items permanently deleted',
-            ),
+          content: Text(
+            moveToTrash
+                ? (selected.length == 1
+                    ? '"${selected.first.name}" moved to Recycle Bin'
+                    : '${selected.length} items moved to Recycle Bin')
+                : '${selected.length} items permanently deleted',
+            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
           ),
           action: moveToTrash
               ? SnackBarAction(
@@ -646,13 +645,18 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
                     final count = await RecycleBinService.instance.restoreRecentlyTrashed();
                     if (mounted) {
                       _loadDirectory();
-                      ScaffoldMessenger.of(context).removeCurrentSnackBar();
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      final undoMessenger = ScaffoldMessenger.of(context);
+                      undoMessenger.removeCurrentSnackBar();
+                      undoMessenger.showSnackBar(
                         SnackBar(
+                          backgroundColor: AppleColors.darkCard,
                           behavior: SnackBarBehavior.floating,
                           dismissDirection: DismissDirection.down,
                           duration: const Duration(seconds: 2),
-                          content: Text('$count item${count == 1 ? '' : 's'} restored'),
+                          content: Text(
+                            '$count item${count == 1 ? '' : 's'} restored',
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
                         ),
                       );
                     }
@@ -661,6 +665,9 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
               : null,
         ),
       );
+      Timer(const Duration(seconds: 4), () {
+        messenger.hideCurrentSnackBar();
+      });
     }
   }
 

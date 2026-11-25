@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.0_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.1_(arm64_34MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 📲 Direct Downloads (v2.2.0 / Build 24)
+## 📲 Direct Downloads (v2.2.1 / Build 25)
 
 Download the official standalone release for your device architecture:
 
@@ -163,6 +163,12 @@ Download the official standalone release for your device architecture:
 * **Ordered Video Merging:** Select 2 or more videos to combine clips in the exact order selected, featuring a reorderable sequence preview and total duration calculation.
 * **Flexible Save Options:** Choose between **'Save as New File'** (keeps originals) or **'Replace Original'** (seamlessly overwrites source and rescans Android MediaStore).
 * **Apple Frosted Render Progress:** OLED dark frosted modal displaying hardware accelerated progress percentage, notification bar alerts, and instant cancel support.
+
+---
+
+### 🛡️ 12. Home Server Read-Write Permissions & Apple Toaster Enhancements (v2.2.1)
+* **Full Home Server Read-Write Access:** Fixed regression where SMB, WebDAV, SFTP, and FTP shares were incorrectly marked read-only. Full deletion and folder management restored across all local network storage (AeroLink device-to-device remains safe read-only mesh).
+* **Apple OLED Toasters & Smooth Dismissal:** Replaced white Material 3 default snackbars with sleek `#1C1C1E` dark cards, subtle borders, and crisp white typography. Guaranteed 4-second auto-close timeout with native swipe/pull down to dismiss immediately.
 
 ---
 

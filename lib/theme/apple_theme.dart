@@ -61,6 +61,23 @@ class AppleTheme {
         surface: AppleColors.darkCard,
         error: AppleColors.systemRed,
       ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppleColors.darkCard,
+        contentTextStyle: const TextStyle(
+          color: AppleColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        actionTextColor: AppleColors.systemBlue,
+        disabledActionTextColor: AppleColors.textTertiary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: Color(0xFF38383A), width: 0.6),
+        ),
+        elevation: 6,
+        dismissDirection: DismissDirection.down,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppleColors.pureBlack,
         elevation: 0,
@@ -109,6 +126,23 @@ class AppleTheme {
         secondary: AppleColors.systemIndigo,
         surface: AppleColors.lightCard,
         error: AppleColors.systemRed,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppleColors.darkCard,
+        contentTextStyle: const TextStyle(
+          color: AppleColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        actionTextColor: AppleColors.systemBlue,
+        disabledActionTextColor: AppleColors.textTertiary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: Color(0xFF38383A), width: 0.6),
+        ),
+        elevation: 6,
+        dismissDirection: DismissDirection.down,
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppleColors.lightBackground,

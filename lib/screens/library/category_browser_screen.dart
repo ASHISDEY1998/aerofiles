@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -581,26 +582,18 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
     });
 
     if (mounted) {
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.removeCurrentSnackBar();
       if (moveToTrash) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
+            backgroundColor: AppleColors.darkCard,
             behavior: SnackBarBehavior.floating,
             dismissDirection: DismissDirection.down,
             duration: const Duration(seconds: 4),
-            content: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onVerticalDragEnd: (details) {
-                if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                }
-              },
-              onVerticalDragUpdate: (details) {
-                if (details.delta.dy > 3) {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                }
-              },
-              child: Text('${selected.length} item${selected.length == 1 ? '' : 's'} moved to Recycle Bin'),
+            content: Text(
+              '${selected.length} item${selected.length == 1 ? '' : 's'} moved to Recycle Bin',
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
             ),
             action: SnackBarAction(
               label: 'Undo',
@@ -616,12 +609,17 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
                   }
                   setState(() => _currentItems = existing);
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).removeCurrentSnackBar();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  final undoMessenger = ScaffoldMessenger.of(context);
+                  undoMessenger.removeCurrentSnackBar();
+                  undoMessenger.showSnackBar(
                     SnackBar(
+                      backgroundColor: AppleColors.darkCard,
                       behavior: SnackBarBehavior.floating,
                       dismissDirection: DismissDirection.down,
-                      content: Text('Restored $restored item${restored == 1 ? '' : 's'}'),
+                      content: Text(
+                        'Restored $restored item${restored == 1 ? '' : 's'}',
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
                       duration: const Duration(seconds: 2),
                     ),
                   );
@@ -630,13 +628,25 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
             ),
           ),
         );
+        Timer(const Duration(seconds: 4), () {
+          messenger.hideCurrentSnackBar();
+        });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
-            content: Text('${selected.length} items permanently deleted'),
-            duration: const Duration(seconds: 2),
+            backgroundColor: AppleColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            dismissDirection: DismissDirection.down,
+            duration: const Duration(seconds: 4),
+            content: Text(
+              '${selected.length} items permanently deleted',
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+            ),
           ),
         );
+        Timer(const Duration(seconds: 4), () {
+          messenger.hideCurrentSnackBar();
+        });
       }
     }
   }

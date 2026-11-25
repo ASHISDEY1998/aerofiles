@@ -473,29 +473,34 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
     if (_playlist.isEmpty || _currentIndex >= _playlist.length) return;
     final currentNode = _playlist[_currentIndex];
 
-    final isRemote = widget.vfs is AeroLinkVfs ||
-        (widget.vfs != null && widget.vfs is! LocalVfs) ||
-        _currentPlaybackUri.startsWith('http://') ||
-        _currentPlaybackUri.startsWith('https://');
+    final isAeroLink = widget.vfs is AeroLinkVfs || _currentPlaybackUri.contains('/aerolink/stream');
 
-    if (isRemote) {
-      ScaffoldMessenger.of(context).removeCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (isAeroLink) {
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.removeCurrentSnackBar();
+      messenger.showSnackBar(
         SnackBar(
+          backgroundColor: AppleColors.darkCard,
           behavior: SnackBarBehavior.floating,
           dismissDirection: DismissDirection.down,
-          duration: const Duration(seconds: 3),
+          duration: const Duration(seconds: 4),
           content: const Row(
             children: [
               Icon(CupertinoIcons.exclamationmark_circle, color: AppleColors.systemOrange, size: 20),
               SizedBox(width: 8),
               Expanded(
-                child: Text('Cannot modify remote files. AeroLink storage is read-only.'),
+                child: Text(
+                  'Cannot modify remote files. AeroLink storage is read-only.',
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
               ),
             ],
           ),
         ),
       );
+      Timer(const Duration(seconds: 4), () {
+        messenger.hideCurrentSnackBar();
+      });
       return;
     }
 
@@ -719,32 +724,25 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       LogService.instance.info('PLAYER', 'Successfully deleted "${node.name}" from storage');
 
       if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.removeCurrentSnackBar();
+        messenger.showSnackBar(
           SnackBar(
+            backgroundColor: AppleColors.darkCard,
             behavior: SnackBarBehavior.floating,
             dismissDirection: DismissDirection.down,
             duration: const Duration(seconds: 4),
-            content: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onVerticalDragEnd: (details) {
-                if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                }
-              },
-              onVerticalDragUpdate: (details) {
-                if (details.delta.dy > 3) {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                }
-              },
-              child: Text(
-                moveToTrash
-                    ? '"${node.name}" moved to Recycle Bin'
-                    : '"${node.name}" permanently deleted',
-              ),
+            content: Text(
+              moveToTrash
+                  ? '"${node.name}" moved to Recycle Bin'
+                  : '"${node.name}" permanently deleted',
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
             ),
           ),
         );
+        Timer(const Duration(seconds: 4), () {
+          messenger.hideCurrentSnackBar();
+        });
       }
 
       // Remove from playlist
@@ -1620,10 +1618,8 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final isCompact = constraints.maxWidth < 600;
-                      final isRemote = widget.vfs is AeroLinkVfs ||
-                          (widget.vfs != null && widget.vfs is! LocalVfs) ||
-                          _currentPlaybackUri.startsWith('http://') ||
-                          _currentPlaybackUri.startsWith('https://');
+                      final isAeroLink = widget.vfs is AeroLinkVfs || _currentPlaybackUri.contains('/aerolink/stream');
+                      final isLocal = widget.vfs is LocalVfs || (widget.vfs == null && File(_playlist[_currentIndex].path).existsSync());
 
                       return Row(
                         children: [
@@ -1725,9 +1721,9 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                             IconButton(
                               icon: Icon(
                                 CupertinoIcons.trash,
-                                color: isRemote ? Colors.white38 : Colors.white,
+                                color: isAeroLink ? Colors.white38 : Colors.white,
                               ),
-                              tooltip: isRemote ? 'Remote files cannot be deleted' : 'Delete Video',
+                              tooltip: isAeroLink ? 'AeroLink files cannot be deleted' : 'Delete Video',
                               onPressed: _confirmDeleteCurrentVideo,
                             ),
                           ] else ...[
@@ -1785,7 +1781,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                                     ],
                                   ),
                                 ),
-                                if (!isRemote && _currentIndex < _playlist.length)
+                                if (isLocal && _currentIndex < _playlist.length)
                                   const PopupMenuItem(
                                     value: 'trim',
                                     child: Row(
@@ -1842,14 +1838,14 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                                     children: [
                                       Icon(
                                         CupertinoIcons.trash,
-                                        color: isRemote ? Colors.grey : AppleColors.systemRed,
+                                        color: isAeroLink ? Colors.grey : AppleColors.systemRed,
                                         size: 20,
                                       ),
                                       const SizedBox(width: 12),
                                       Text(
-                                        isRemote ? 'Delete (Read-only)' : 'Delete Video',
+                                        isAeroLink ? 'Delete (Read-only)' : 'Delete Video',
                                         style: TextStyle(
-                                          color: isRemote ? Colors.grey : AppleColors.systemRed,
+                                          color: isAeroLink ? Colors.grey : AppleColors.systemRed,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
