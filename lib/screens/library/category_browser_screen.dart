@@ -19,6 +19,7 @@ import '../../widgets/apple_card.dart';
 import '../../widgets/file_tile.dart';
 import '../common/destination_picker_screen.dart';
 import '../player/image_viewer_screen.dart';
+import '../player/universal_audio_player_screen.dart';
 import '../player/universal_video_player_screen.dart';
 import '../player/video_merge_dialog.dart';
 import '../player/video_trim_screen.dart';
@@ -276,6 +277,34 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
         CupertinoPageRoute(
           builder: (_) => ImageViewerScreen(
             images: allImages.isNotEmpty ? allImages : [node],
+            initialIndex: index != -1 ? index : 0,
+            vfs: widget.localVfs,
+          ),
+        ),
+      );
+      if (deleted == true && mounted) {
+        final existing = <VfsNode>[];
+        for (final item in _currentItems) {
+          if (await File(item.path).exists()) {
+            existing.add(item);
+          }
+        }
+        setState(() {
+          _currentItems = existing;
+          if (_selectedFolderGroup != null &&
+              !existing.any((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath)) {
+            _selectedFolderGroup = null;
+          }
+        });
+      }
+    } else if (node.isAudio) {
+      final audioItems = _displayItems.where((e) => e.isAudio).toList();
+      final index = audioItems.indexWhere((e) => e.path == node.path);
+      final deleted = await Navigator.push<bool>(
+        context,
+        CupertinoPageRoute(
+          builder: (_) => UniversalAudioPlayerScreen(
+            playlist: audioItems.isNotEmpty ? audioItems : [node],
             initialIndex: index != -1 ? index : 0,
             vfs: widget.localVfs,
           ),

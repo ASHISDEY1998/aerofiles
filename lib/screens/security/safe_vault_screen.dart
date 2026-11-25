@@ -7,6 +7,7 @@ import '../../services/log_service.dart';
 import '../../services/security/safe_vault_service.dart';
 import '../../theme/apple_theme.dart';
 import '../player/image_viewer_screen.dart';
+import '../player/universal_audio_player_screen.dart';
 import '../player/universal_video_player_screen.dart';
 import 'vault_pin_dialog.dart';
 
@@ -121,6 +122,26 @@ class _SafeVaultScreenState extends State<SafeVaultScreen> {
           CupertinoPageRoute(
             builder: (_) => ImageViewerScreen(
               images: [vNode],
+              initialIndex: 0,
+            ),
+          ),
+        );
+        if (deleted == true && mounted) {
+          setState(() {});
+        }
+      } else if (item.isAudio) {
+        final vNode = VfsNode(
+          path: file.path,
+          name: item.fileName,
+          size: item.size,
+          modified: item.dateAdded,
+          isDirectory: false,
+        );
+        final deleted = await Navigator.push<bool>(
+          context,
+          CupertinoPageRoute(
+            builder: (_) => UniversalAudioPlayerScreen(
+              playlist: [vNode],
               initialIndex: 0,
             ),
           ),

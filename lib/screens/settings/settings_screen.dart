@@ -414,6 +414,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         isDark: isDark,
                       ),
+                      if (BiometricService.instance.isAppLockEnabled)
+                        _buildRowItem(
+                          icon: _buildSquircleIcon(CupertinoIcons.timer, AppleColors.systemOrange),
+                          title: 'Lock Timeout',
+                          subtitle: _getAppLockTimeoutSubtitle(BiometricService.instance.lockTimeout),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _getAppLockTimeoutLabel(BiometricService.instance.lockTimeout),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                CupertinoIcons.chevron_right,
+                                size: 14,
+                                color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                              ),
+                            ],
+                          ),
+                          onTap: _showAppLockTimeoutPicker,
+                          isDark: isDark,
+                        ),
                       _buildRowItem(
                         icon: _buildSquircleIcon(CupertinoIcons.shield_lefthalf_fill, AppleColors.systemIndigo),
                         title: 'Safe Vault (AES-256)',
@@ -821,6 +847,86 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  String _getAppLockTimeoutLabel(AppLockTimeout timeout) {
+    switch (timeout) {
+      case AppLockTimeout.immediately:
+        return 'Immediately';
+      case AppLockTimeout.thirtySeconds:
+        return 'After 30s';
+      case AppLockTimeout.oneMinute:
+        return 'After 1 min';
+      case AppLockTimeout.fiveMinutes:
+        return 'After 5 min';
+    }
+  }
+
+  String _getAppLockTimeoutSubtitle(AppLockTimeout timeout) {
+    switch (timeout) {
+      case AppLockTimeout.immediately:
+        return 'Require Fingerprint/PIN immediately on focus change';
+      case AppLockTimeout.thirtySeconds:
+        return 'Require Fingerprint/PIN after 30 seconds in background';
+      case AppLockTimeout.oneMinute:
+        return 'Require Fingerprint/PIN after 1 minute in background';
+      case AppLockTimeout.fiveMinutes:
+        return 'Require Fingerprint/PIN after 5 minutes or screen lock';
+    }
+  }
+
+  void _showAppLockTimeoutPicker() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Require Authentication'),
+        message: const Text('Choose when AeroFiles requires fingerprint or PIN:'),
+        actions: [
+          for (final timeout in AppLockTimeout.values)
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                await BiometricService.instance.setLockTimeout(timeout);
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) setState(() {});
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (BiometricService.instance.lockTimeout == timeout)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: Icon(CupertinoIcons.check_mark, size: 16),
+                    ),
+                  Flexible(
+                    child: Text(
+                      _getTimeoutPickerTitle(timeout),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  String _getTimeoutPickerTitle(AppLockTimeout timeout) {
+    switch (timeout) {
+      case AppLockTimeout.immediately:
+        return 'Immediately (Focus Change)';
+      case AppLockTimeout.thirtySeconds:
+        return 'After 30 seconds';
+      case AppLockTimeout.oneMinute:
+        return 'After 1 minute';
+      case AppLockTimeout.fiveMinutes:
+        return 'After 5 minutes / Manual Lock';
+    }
   }
 
   void _showSendLogSheet() {

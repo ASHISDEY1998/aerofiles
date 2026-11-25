@@ -15,6 +15,7 @@ class AppLockOverlay extends StatefulWidget {
 class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObserver {
   final _biometricService = BiometricService.instance;
   bool _isAuthenticating = false;
+  DateTime? _lastBackgroundTimestamp;
 
   @override
   void initState() {
@@ -36,8 +37,18 @@ class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObse
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      _biometricService.lock();
+      _lastBackgroundTimestamp = DateTime.now();
+      if (_biometricService.lockTimeout == AppLockTimeout.immediately) {
+        _biometricService.lock();
+      }
     } else if (state == AppLifecycleState.resumed) {
+      if (_lastBackgroundTimestamp != null) {
+        final elapsedSeconds = DateTime.now().difference(_lastBackgroundTimestamp!).inSeconds;
+        if (elapsedSeconds >= _biometricService.timeoutInSeconds) {
+          _biometricService.lock();
+        }
+        _lastBackgroundTimestamp = null;
+      }
       if (_biometricService.isAppLocked.value && !_isAuthenticating) {
         _attemptUnlock();
       }

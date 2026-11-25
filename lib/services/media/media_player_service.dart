@@ -20,6 +20,7 @@ class MediaPlayerService {
 
   bool _isDisposed = false;
   void Function()? onAudioFocusInterrupted;
+  void Function()? onMediaPlayPause;
   void Function()? onMediaNext;
   void Function()? onMediaPrevious;
 
@@ -68,6 +69,7 @@ class MediaPlayerService {
       } else if (call.method == 'onMediaPlayPause') {
         LogService.instance.info('PLAYER', 'Headset / Media Play-Pause event received');
         await playOrPause();
+        onMediaPlayPause?.call();
       } else if (call.method == 'onMediaPlay') {
         LogService.instance.info('PLAYER', 'Headset / Media Play event received');
         await play();

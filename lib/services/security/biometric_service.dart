@@ -4,24 +4,54 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../log_service.dart';
 
+enum AppLockTimeout {
+  immediately,
+  thirtySeconds,
+  oneMinute,
+  fiveMinutes,
+}
+
 class BiometricService {
   static final BiometricService instance = BiometricService._();
   BiometricService._();
 
   static const String _keyAppLock = 'aerofiles_app_lock_enabled';
+  static const String _keyAppLockTimeout = 'aerofiles_app_lock_timeout';
 
   final LocalAuthentication _auth = LocalAuthentication();
   SharedPreferences? _prefs;
 
   final ValueNotifier<bool> isAppLocked = ValueNotifier<bool>(false);
   bool _isLockEnabled = false;
+  AppLockTimeout _lockTimeout = AppLockTimeout.immediately;
 
   bool get isAppLockEnabled => _isLockEnabled;
+  AppLockTimeout get lockTimeout => _lockTimeout;
+
+  int get timeoutInSeconds {
+    switch (_lockTimeout) {
+      case AppLockTimeout.immediately:
+        return 0;
+      case AppLockTimeout.thirtySeconds:
+        return 30;
+      case AppLockTimeout.oneMinute:
+        return 60;
+      case AppLockTimeout.fiveMinutes:
+        return 300;
+    }
+  }
 
   Future<void> init() async {
     try {
       _prefs ??= await SharedPreferences.getInstance();
       _isLockEnabled = _prefs?.getBool(_keyAppLock) ?? false;
+      final timeoutStr = _prefs?.getString(_keyAppLockTimeout);
+      if (timeoutStr != null) {
+        _lockTimeout = AppLockTimeout.values.firstWhere(
+          (e) => e.name == timeoutStr,
+          orElse: () => AppLockTimeout.immediately,
+        );
+      }
       if (_isLockEnabled) {
         isAppLocked.value = true;
       }
@@ -76,6 +106,18 @@ class BiometricService {
     } catch (e) {
       LogService.instance.error('BIOMETRIC', 'Failed to update app lock setting: $e');
       return false;
+    }
+  }
+
+  /// Sets the inactivity timeout before App Lock engages.
+  Future<void> setLockTimeout(AppLockTimeout timeout) async {
+    try {
+      _prefs ??= await SharedPreferences.getInstance();
+      await _prefs!.setString(_keyAppLockTimeout, timeout.name);
+      _lockTimeout = timeout;
+      LogService.instance.info('BIOMETRIC', 'App lock timeout set to: ${timeout.name}');
+    } catch (e) {
+      LogService.instance.error('BIOMETRIC', 'Failed to update app lock timeout: $e');
     }
   }
 
