@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aerofiles/models/vfs_node.dart';
@@ -10,11 +11,11 @@ import 'package:aerofiles/screens/player/video_merge_dialog.dart';
 
 void main() {
   group('AppUpdateService Versioning Tests', () {
-    test('Detects newer remote version v2.2.6 > v2.2.5', () {
+    test('Detects newer remote version v2.2.7 > v2.2.6', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.6',
-        localVersion: '2.2.5',
-        localBuildNumber: '29',
+        remoteTag: 'v2.2.7',
+        localVersion: '2.2.6',
+        localBuildNumber: '30',
         remotePublishedAt: DateTime.now(),
       );
       expect(hasUpdate, isTrue);
@@ -22,20 +23,20 @@ void main() {
 
     test('Detects identical versions with same build as no update', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.6',
-        localVersion: '2.2.6',
-        localBuildNumber: '30',
+        remoteTag: 'v2.2.7',
+        localVersion: '2.2.7',
+        localBuildNumber: '31',
         remotePublishedAt: DateTime.now(),
-        releaseTitle: 'AeroFiles v2.2.6 (Build 30)',
+        releaseTitle: 'AeroFiles v2.2.7 (Build 31)',
       );
       expect(hasUpdate, isFalse);
     });
 
     test('Detects newer build number when version string matches', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.6+31',
-        localVersion: '2.2.6',
-        localBuildNumber: '30',
+        remoteTag: 'v2.2.7+32',
+        localVersion: '2.2.7',
+        localBuildNumber: '31',
         remotePublishedAt: DateTime.now(),
       );
       expect(hasUpdate, isTrue);
@@ -191,12 +192,13 @@ void main() {
 
   group('Video Editor Dialogs Material & UI Tests', () {
     testWidgets('VideoRenderProgressDialog has Material ancestor and renders without error', (tester) async {
+      final completer = Completer<String>();
       await tester.pumpWidget(
         MaterialApp(
           home: VideoRenderProgressDialog(
             title: 'Trimming Video...',
             subtitle: 'Exporting trimmed clip to folder',
-            task: (_) async => '/path/to/trimmed.mp4',
+            task: (_) => completer.future,
           ),
         ),
       );
@@ -205,6 +207,14 @@ void main() {
       expect(find.text('Trimming Video...'), findsOneWidget);
       expect(find.text('Hardware Accelerated'), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
+
+      // Complete the task and verify the success alert & tick state
+      completer.complete('/path/to/trimmed.mp4');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Trim Complete!'), findsOneWidget);
+      expect(find.text('Saved'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1500));
     });
 
     testWidgets('VideoMergeDialog has Material ancestor and renders without error', (tester) async {

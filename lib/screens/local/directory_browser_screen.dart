@@ -221,7 +221,27 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       ),
     );
     if (changed == true && mounted) {
-      _loadDirectory();
+      setState(() {
+        _selectedPaths.clear();
+        _isSelectionMode = false;
+      });
+      await _loadDirectory();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(CupertinoIcons.checkmark_circle_fill, color: AppleColors.systemGreen, size: 20),
+                SizedBox(width: 10),
+                Text('Video trimmed successfully'),
+              ],
+            ),
+            backgroundColor: AppleColors.darkElevated,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -231,7 +251,11 @@ class _DirectoryBrowserScreenState extends State<DirectoryBrowserScreen> {
       orderedVideos: nodes,
     );
     if (changed && mounted) {
-      _loadDirectory();
+      setState(() {
+        _selectedPaths.clear();
+        _isSelectionMode = false;
+      });
+      await _loadDirectory();
     }
   }
 

@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.6_(arm64_35MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.7_(arm64_35MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -27,17 +27,17 @@
 
 ---
 
-## 📲 Direct Downloads (v2.2.6 / Build 30)
+## 📲 Direct Downloads (v2.2.7 / Build 31)
 
 Download the official standalone release for your device architecture:
 
 | Package | Architecture / Target | Download Link | Size | Description |
 | :--- | :--- | :---: | :---: | :--- |
-| **AeroFiles (arm64)** | **64-bit ARM (`arm64-v8a`)** | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk) | **~34 MB** | **Recommended** for 99% of modern phones and tablets |
-| **AeroFiles (armv7)** | 32-bit ARM (`armeabi-v7a`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-armv7.apk) | **~32 MB** | Legacy Android devices |
-| **AeroFiles (x86_64)** | 64-bit Intel/AMD (`x86_64`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-x86_64.apk) | **~39 MB** | Chromebooks & Android Emulators |
-| **AeroFiles (Universal)**| All Architectures | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk) | **~102 MB** | Universal fat APK containing all native binaries |
-| **AeroFiles App Bundle** | Android App Bundle (`.aab`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.aab) | **~77 MB** | Signed bundle for Google Play Console publishing |
+| **AeroFiles (arm64)** | **64-bit ARM (`arm64-v8a`)** | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk) | **~35 MB** | **Recommended** for 99% of modern phones and tablets |
+| **AeroFiles (armv7)** | 32-bit ARM (`armeabi-v7a`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-armv7.apk) | **~33 MB** | Legacy Android devices |
+| **AeroFiles (x86_64)** | 64-bit Intel/AMD (`x86_64`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-x86_64.apk) | **~40 MB** | Chromebooks & Android Emulators |
+| **AeroFiles (Universal)**| All Architectures | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.apk) | **~104 MB** | Universal fat APK containing all native binaries |
+| **AeroFiles App Bundle** | Android App Bundle (`.aab`) | [📥 **Download**](https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles.aab) | **~79 MB** | Signed bundle for Google Play Console publishing |
 
 * **Android Compatibility:** Android 8.0 (Oreo) to Android 15+
 

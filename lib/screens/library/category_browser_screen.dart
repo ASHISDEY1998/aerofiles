@@ -371,7 +371,25 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
       ),
     );
     if (changed == true && mounted) {
+      setState(() {
+        _selectedPaths.clear();
+        _isSelectionMode = false;
+      });
       _refreshCategory(folderHint: p.dirname(node.path));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(CupertinoIcons.checkmark_circle_fill, color: AppleColors.systemGreen, size: 20),
+              SizedBox(width: 10),
+              Text('Video trimmed successfully'),
+            ],
+          ),
+          backgroundColor: AppleColors.darkElevated,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -381,6 +399,10 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
       orderedVideos: nodes,
     );
     if (changed && mounted) {
+      setState(() {
+        _selectedPaths.clear();
+        _isSelectionMode = false;
+      });
       final hint = nodes.isNotEmpty ? p.dirname(nodes.first.path) : null;
       _refreshCategory(folderHint: hint);
     }
@@ -391,20 +413,36 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
       try {
         final dir = Directory(folderHint);
         if (dir.existsSync()) {
-          final existingPaths = _currentItems.map((e) => e.path).toSet();
+          final existingMap = {for (final e in _currentItems) e.path: e};
           for (final entity in dir.listSync(followLinks: false)) {
-            if (entity is File && !existingPaths.contains(entity.path)) {
+            if (entity is File) {
               try {
                 final stat = entity.statSync();
-                final newNode = VfsNode(
-                  path: entity.path,
-                  name: p.basename(entity.path),
-                  size: stat.size,
-                  isDirectory: false,
-                  modified: stat.modified,
-                );
-                if (newNode.category.name.toLowerCase() == widget.title.toLowerCase() || newNode.isVideo) {
-                  _currentItems.add(newNode);
+                if (!existingMap.containsKey(entity.path)) {
+                  final newNode = VfsNode(
+                    path: entity.path,
+                    name: p.basename(entity.path),
+                    size: stat.size,
+                    isDirectory: false,
+                    modified: stat.modified,
+                  );
+                  if (newNode.category.name.toLowerCase() == widget.title.toLowerCase() || newNode.isVideo) {
+                    _currentItems.add(newNode);
+                  }
+                } else {
+                  final existing = existingMap[entity.path]!;
+                  if (existing.size != stat.size || existing.modified != stat.modified) {
+                    final idx = _currentItems.indexWhere((e) => e.path == entity.path);
+                    if (idx != -1) {
+                      _currentItems[idx] = VfsNode(
+                        path: entity.path,
+                        name: existing.name,
+                        size: stat.size,
+                        isDirectory: false,
+                        modified: stat.modified,
+                      );
+                    }
+                  }
                 }
               } catch (_) {}
             }
@@ -412,6 +450,27 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
         }
       } catch (_) {}
     }
+
+    // Refresh all items in _currentItems from disk stats to guarantee fresh sizes
+    for (int i = 0; i < _currentItems.length; i++) {
+      final item = _currentItems[i];
+      try {
+        final file = File(item.path);
+        if (file.existsSync()) {
+          final stat = file.statSync();
+          if (stat.size != item.size || stat.modified != item.modified) {
+            _currentItems[i] = VfsNode(
+              path: item.path,
+              name: item.name,
+              size: stat.size,
+              isDirectory: false,
+              modified: stat.modified,
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
     setState(() {
       _currentItems.removeWhere((item) => !File(item.path).existsSync() && !Directory(item.path).existsSync());
       _currentItems.sort((a, b) => b.modified.compareTo(a.modified));

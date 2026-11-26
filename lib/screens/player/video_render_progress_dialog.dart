@@ -54,11 +54,20 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
   int _progress = 0;
   bool _isCancelling = false;
   String? _errorMessage;
+  bool _isSuccess = false;
+  String? _outputPath;
+  bool _hasPopped = false;
 
   @override
   void initState() {
     super.initState();
     _startTask();
+  }
+
+  void _finishSuccess(String? path) {
+    if (_hasPopped || !mounted) return;
+    _hasPopped = true;
+    Navigator.of(context).pop(path);
   }
 
   Future<void> _startTask() async {
@@ -68,8 +77,15 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
           setState(() => _progress = progress.clamp(0, 100));
         }
       });
+      _outputPath = outputPath;
       if (mounted) {
-        Navigator.of(context).pop(outputPath);
+        setState(() {
+          _progress = 100;
+          _isSuccess = true;
+        });
+        // Allow user to clearly see the animated green success checkmark and alert
+        await Future.delayed(const Duration(milliseconds: 1300));
+        _finishSuccess(outputPath);
       }
     } catch (e) {
       if (mounted) {
@@ -81,11 +97,33 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
   }
 
   Future<void> _handleCancel() async {
+    if (_isSuccess) {
+      _finishSuccess(_outputPath);
+      return;
+    }
     setState(() => _isCancelling = true);
     await VideoEditorService.instance.cancel();
-    if (mounted) {
+    if (mounted && !_hasPopped) {
+      _hasPopped = true;
       Navigator.of(context).pop(null);
     }
+  }
+
+  String get _displayTitle {
+    if (_errorMessage != null) return 'Rendering Error';
+    if (_isSuccess) {
+      if (widget.title.toLowerCase().contains('trim')) return 'Trim Complete!';
+      if (widget.title.toLowerCase().contains('merge')) return 'Merge Complete!';
+      return 'Complete!';
+    }
+    return widget.title;
+  }
+
+  String get _displaySubtitle {
+    if (_errorMessage != null) return _errorMessage!;
+    if (_isSuccess) return 'Saved successfully to folder';
+    if (_isCancelling) return 'Cancelling operation...';
+    return widget.subtitle;
   }
 
   @override
@@ -95,7 +133,10 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && !_isCancelling) {
+        if (didPop) return;
+        if (_isSuccess) {
+          _finishSuccess(_outputPath);
+        } else if (!_isCancelling) {
           _handleCancel();
         }
       },
@@ -129,39 +170,61 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Icon Header
-                    Container(
+                    // Icon Header with Animated Transition to Success Checkmark
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutBack,
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [
-                            AppleColors.systemBlue,
-                            AppleColors.systemTeal,
-                          ],
+                          colors: _errorMessage != null
+                              ? [AppleColors.systemRed, const Color(0xFFFF453A)]
+                              : _isSuccess
+                                  ? [AppleColors.systemGreen, const Color(0xFF30D158)]
+                                  : [AppleColors.systemBlue, AppleColors.systemTeal],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: AppleColors.systemBlue.withValues(alpha: 0.35),
+                            color: (_errorMessage != null
+                                    ? AppleColors.systemRed
+                                    : _isSuccess
+                                        ? AppleColors.systemGreen
+                                        : AppleColors.systemBlue)
+                                .withValues(alpha: 0.35),
                             blurRadius: 16,
                             offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                      child: Icon(
-                        widget.icon,
-                        color: Colors.white,
-                        size: 28,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        transitionBuilder: (child, animation) =>
+                            ScaleTransition(scale: animation, child: child),
+                        child: Icon(
+                          _errorMessage != null
+                              ? CupertinoIcons.exclamationmark_triangle_fill
+                              : _isSuccess
+                                  ? CupertinoIcons.checkmark_alt
+                                  : widget.icon,
+                          key: ValueKey<String>(
+                            _errorMessage != null
+                                ? 'icon_err'
+                                : (_isSuccess ? 'icon_success' : 'icon_running'),
+                          ),
+                          color: Colors.white,
+                          size: _isSuccess ? 32 : 28,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 18),
 
                     // Title
                     Text(
-                      _errorMessage != null ? 'Rendering Error' : widget.title,
+                      _displayTitle,
                       style: TextStyle(
                         color: isDark ? Colors.white : AppleColors.textPrimaryLight,
                         fontSize: 18,
@@ -174,13 +237,16 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
 
                     // Subtitle / Status
                     Text(
-                      _errorMessage ?? (_isCancelling ? 'Cancelling operation...' : widget.subtitle),
+                      _displaySubtitle,
                       style: TextStyle(
                         color: _errorMessage != null
                             ? AppleColors.systemRed
-                            : (isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight),
+                            : _isSuccess
+                                ? AppleColors.systemGreen
+                                : (isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight),
                         fontSize: 13,
                         height: 1.3,
+                        fontWeight: _isSuccess ? FontWeight.w500 : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
                       maxLines: 3,
@@ -206,10 +272,9 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
                               width: (320 - 48) * (_progress / 100.0),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
-                                  colors: [
-                                    AppleColors.systemBlue,
-                                    AppleColors.systemTeal,
-                                  ],
+                                  colors: _isSuccess
+                                      ? [AppleColors.systemGreen, const Color(0xFF30D158)]
+                                      : [AppleColors.systemBlue, AppleColors.systemTeal],
                                 ),
                               ),
                             ),
@@ -223,9 +288,11 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Hardware Accelerated',
+                            _isSuccess ? 'Saved' : 'Hardware Accelerated',
                             style: TextStyle(
-                              color: isDark ? AppleColors.textTertiary : const Color(0xFF8E8E93),
+                              color: _isSuccess
+                                  ? AppleColors.systemGreen
+                                  : (isDark ? AppleColors.textTertiary : const Color(0xFF8E8E93)),
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
@@ -233,7 +300,7 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
                           Text(
                             '$_progress%',
                             style: TextStyle(
-                              color: AppleColors.systemBlue,
+                              color: _isSuccess ? AppleColors.systemGreen : AppleColors.systemBlue,
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               fontFeatures: const [FontFeature.tabularFigures()],
@@ -243,26 +310,48 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
                       ),
                       const SizedBox(height: 22),
 
-                      // Cancel Button
+                      // Action Button: Cancel during progress, or Done on success
                       SizedBox(
                         width: double.infinity,
                         height: 44,
-                        child: CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
-                          borderRadius: BorderRadius.circular(12),
-                          onPressed: _isCancelling ? null : _handleCancel,
-                          child: Text(
-                            _isCancelling ? 'Cancelling...' : 'Cancel',
-                            style: TextStyle(
-                              color: _isCancelling
-                                  ? (isDark ? Colors.grey : Colors.black45)
-                                  : (isDark ? Colors.white : Colors.black87),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                        child: _isSuccess
+                            ? CupertinoButton(
+                                padding: EdgeInsets.zero,
+                                color: AppleColors.systemGreen,
+                                borderRadius: BorderRadius.circular(12),
+                                onPressed: () => _finishSuccess(_outputPath),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(CupertinoIcons.checkmark_alt, color: Colors.white, size: 18),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Done',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : CupertinoButton(
+                                padding: EdgeInsets.zero,
+                                color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
+                                borderRadius: BorderRadius.circular(12),
+                                onPressed: _isCancelling ? null : _handleCancel,
+                                child: Text(
+                                  _isCancelling ? 'Cancelling...' : 'Cancel',
+                                  style: TextStyle(
+                                    color: _isCancelling
+                                        ? (isDark ? Colors.grey : Colors.black45)
+                                        : (isDark ? Colors.white : Colors.black87),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
                       ),
                     ] else ...[
                       // Dismiss Button on Error

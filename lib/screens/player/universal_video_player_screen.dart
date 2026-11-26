@@ -1756,6 +1756,19 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                                         setState(() {
                                           _hasModifiedAny = true;
                                         });
+                                        try {
+                                          final f = File(currentNode.path);
+                                          if (f.existsSync()) {
+                                            final s = f.statSync();
+                                            _playlist[_currentIndex] = VfsNode(
+                                              path: currentNode.path,
+                                              name: currentNode.name,
+                                              size: s.size,
+                                              isDirectory: false,
+                                              modified: s.modified,
+                                            );
+                                          }
+                                        } catch (_) {}
                                         _playVideoAtIndex(_currentIndex);
                                       }
                                     }

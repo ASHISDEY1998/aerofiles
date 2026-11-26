@@ -62,6 +62,13 @@ class ThumbnailService {
     _inFlight.clear();
   }
 
+  /// Evicts a specific path from in-memory cache so a fresh thumbnail is generated
+  void evict(String path) {
+    _l1Cache.remove(path);
+    _l1Keys.remove(path);
+    _inFlight.remove(path);
+  }
+
   /// Clears both in-memory L1 and persistent L2 disk cache.
   Future<void> clearAll() async {
     clear();

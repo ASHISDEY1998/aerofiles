@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import '../log_service.dart';
 import '../recycle_bin_service.dart';
 import '../settings_service.dart';
+import 'thumbnail_service.dart';
 
 class VideoMetadata {
   final Duration duration;
@@ -179,6 +180,7 @@ class VideoEditorService {
       try {
         await _storageChannel.invokeMethod('scanFile', {'path': targetOutputPath});
       } catch (_) {}
+      ThumbnailService.instance.evict(targetOutputPath);
 
       LogService.instance.info('VIDEO_EDITOR', 'Trim successfully completed: $targetOutputPath');
       return targetOutputPath;
@@ -283,6 +285,7 @@ class VideoEditorService {
       try {
         await _storageChannel.invokeMethod('scanFile', {'path': finalOutputPath});
       } catch (_) {}
+      ThumbnailService.instance.evict(finalOutputPath);
 
       LogService.instance.info('VIDEO_EDITOR', 'Merge successfully completed: $finalOutputPath');
       return finalOutputPath;
