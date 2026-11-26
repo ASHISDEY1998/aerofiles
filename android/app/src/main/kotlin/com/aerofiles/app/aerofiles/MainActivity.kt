@@ -575,6 +575,25 @@ class MainActivity : FlutterFragmentActivity() {
                         videoEditorHelper = VideoEditorHelper(applicationContext)
                     }
 
+                    val isReplied = java.util.concurrent.atomic.AtomicBoolean(false)
+                    fun safeSuccess(data: Any?) {
+                        if (isReplied.compareAndSet(false, true)) {
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.success(data)
+                            }
+                        }
+                    }
+                    fun safeError(code: String, message: String?) {
+                        if (isReplied.compareAndSet(false, true)) {
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.error(code, message, null)
+                            }
+                        }
+                    }
+
+                    var lastNotifiedP = -1
                     updateTransferNotification("Trimming Video", "Rendering trimmed clip...", 0, 100)
 
                     videoEditorHelper?.trimVideo(
@@ -587,23 +606,28 @@ class MainActivity : FlutterFragmentActivity() {
                                 methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to progress
                                 ))
-                                updateTransferNotification("Trimming Video", "Rendering: $progress%", progress, 100)
+                                videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to progress
+                                ))
+                                if (progress != lastNotifiedP) {
+                                    lastNotifiedP = progress
+                                    updateTransferNotification("Trimming Video", "Rendering: $progress%", progress, 100)
+                                }
                             }
                         },
                         onComplete = { outPath ->
                             runOnUiThread {
-                                stopTransferNotification()
                                 methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to 100
                                 ))
-                                result.success(outPath)
+                                videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to 100
+                                ))
+                                safeSuccess(outPath)
                             }
                         },
                         onError = { error ->
-                            runOnUiThread {
-                                stopTransferNotification()
-                                result.error("TRIM_ERROR", error, null)
-                            }
+                            safeError("TRIM_ERROR", error)
                         }
                     )
                 }
@@ -620,6 +644,25 @@ class MainActivity : FlutterFragmentActivity() {
                         videoEditorHelper = VideoEditorHelper(applicationContext)
                     }
 
+                    val isReplied = java.util.concurrent.atomic.AtomicBoolean(false)
+                    fun safeSuccess(data: Any?) {
+                        if (isReplied.compareAndSet(false, true)) {
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.success(data)
+                            }
+                        }
+                    }
+                    fun safeError(code: String, message: String?) {
+                        if (isReplied.compareAndSet(false, true)) {
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.error(code, message, null)
+                            }
+                        }
+                    }
+
+                    var lastNotifiedP = -1
                     updateTransferNotification("Merging Videos", "Combining ${inputPaths.size} clips...", 0, 100)
 
                     videoEditorHelper?.mergeVideos(
@@ -630,23 +673,28 @@ class MainActivity : FlutterFragmentActivity() {
                                 methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to progress
                                 ))
-                                updateTransferNotification("Merging Videos", "Rendering: $progress%", progress, 100)
+                                videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to progress
+                                ))
+                                if (progress != lastNotifiedP) {
+                                    lastNotifiedP = progress
+                                    updateTransferNotification("Merging Videos", "Rendering: $progress%", progress, 100)
+                                }
                             }
                         },
                         onComplete = { outPath ->
                             runOnUiThread {
-                                stopTransferNotification()
                                 methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to 100
                                 ))
-                                result.success(outPath)
+                                videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to 100
+                                ))
+                                safeSuccess(outPath)
                             }
                         },
                         onError = { error ->
-                            runOnUiThread {
-                                stopTransferNotification()
-                                result.error("MERGE_ERROR", error, null)
-                            }
+                            safeError("MERGE_ERROR", error)
                         }
                     )
                 }
@@ -887,6 +935,25 @@ class MainActivity : FlutterFragmentActivity() {
                         videoEditorHelper = VideoEditorHelper(applicationContext)
                     }
 
+                    val isReplied = java.util.concurrent.atomic.AtomicBoolean(false)
+                    fun safeSuccess(data: Any?) {
+                        if (isReplied.compareAndSet(false, true)) {
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.success(data)
+                            }
+                        }
+                    }
+                    fun safeError(code: String, message: String?) {
+                        if (isReplied.compareAndSet(false, true)) {
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.error(code, message, null)
+                            }
+                        }
+                    }
+
+                    var lastNotifiedP = -1
                     updateTransferNotification("Trimming Video", "Rendering trimmed clip...", 0, 100)
 
                     videoEditorHelper?.trimVideo(
@@ -902,26 +969,25 @@ class MainActivity : FlutterFragmentActivity() {
                                 methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to progress
                                 ))
-                                updateTransferNotification("Trimming Video", "Rendering: $progress%", progress, 100)
+                                if (progress != lastNotifiedP) {
+                                    lastNotifiedP = progress
+                                    updateTransferNotification("Trimming Video", "Rendering: $progress%", progress, 100)
+                                }
                             }
                         },
                         onComplete = { outPath ->
                             runOnUiThread {
-                                stopTransferNotification()
                                 videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to 100
                                 ))
                                 methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to 100
                                 ))
-                                result.success(outPath)
+                                safeSuccess(outPath)
                             }
                         },
                         onError = { error ->
-                            runOnUiThread {
-                                stopTransferNotification()
-                                result.error("TRIM_ERROR", error, null)
-                            }
+                            safeError("TRIM_ERROR", error)
                         }
                     )
                 }
@@ -938,6 +1004,25 @@ class MainActivity : FlutterFragmentActivity() {
                         videoEditorHelper = VideoEditorHelper(applicationContext)
                     }
 
+                    val isReplied = java.util.concurrent.atomic.AtomicBoolean(false)
+                    fun safeSuccess(data: Any?) {
+                        if (isReplied.compareAndSet(false, true)) {
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.success(data)
+                            }
+                        }
+                    }
+                    fun safeError(code: String, message: String?) {
+                        if (isReplied.compareAndSet(false, true)) {
+                            runOnUiThread {
+                                stopTransferNotification()
+                                result.error(code, message, null)
+                            }
+                        }
+                    }
+
+                    var lastNotifiedP = -1
                     updateTransferNotification("Merging Videos", "Combining ${inputPaths.size} clips...", 0, 100)
 
                     videoEditorHelper?.mergeVideos(
@@ -951,26 +1036,25 @@ class MainActivity : FlutterFragmentActivity() {
                                 methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to progress
                                 ))
-                                updateTransferNotification("Merging Videos", "Rendering: $progress%", progress, 100)
+                                if (progress != lastNotifiedP) {
+                                    lastNotifiedP = progress
+                                    updateTransferNotification("Merging Videos", "Rendering: $progress%", progress, 100)
+                                }
                             }
                         },
                         onComplete = { outPath ->
                             runOnUiThread {
-                                stopTransferNotification()
                                 videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to 100
                                 ))
                                 methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to 100
                                 ))
-                                result.success(outPath)
+                                safeSuccess(outPath)
                             }
                         },
                         onError = { error ->
-                            runOnUiThread {
-                                stopTransferNotification()
-                                result.error("MERGE_ERROR", error, null)
-                            }
+                            safeError("MERGE_ERROR", error)
                         }
                     )
                 }

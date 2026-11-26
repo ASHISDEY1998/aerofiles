@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.5_(arm64_35MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.6_(arm64_35MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 📲 Direct Downloads (v2.2.5 / Build 29)
+## 📲 Direct Downloads (v2.2.6 / Build 30)
 
 Download the official standalone release for your device architecture:
 
@@ -190,6 +190,15 @@ Download the official standalone release for your device architecture:
 * **Synchronous Native Cancel Guard:** Fixed transformer cancellation race condition in `VideoEditorHelper.kt` where an asynchronous looper cancel Runnable aborted newly started trim and merge tasks at 0%.
 * **Universal Resolution & Aspect-Ratio Scaling:** Integrated `androidx.media3.effect.Presentation` with `LAYOUT_SCALE_TO_FIT` and `DefaultEncoderFactory` fallback so merging videos of varying dimensions, framerates, and aspect ratios succeeds smoothly without MediaCodec failure.
 * **Audio Track Normalization:** Added silence synthesis via `experimentalSetForceAudioTrack` to ensure multi-video sequences containing muted or mixed audio streams merge without audio desynchronization.
+
+---
+
+### 🛡️ 16. InAppMuxer Stability, Crash Elimination & Instant Folder Refresh (v2.2.6)
+* **Pure In-App MP4 Muxer:** Replaced Android platform's flaky `MediaMuxer` with Media3's pure `InAppMuxer.Factory`, completely resolving "Muxer error" exceptions on non-keyframe clip boundaries, arbitrary framerates, and downloaded web media.
+* **Crash & IllegalStateException Elimination:** Guarded all native MethodChannel responses with `AtomicBoolean` single-shot handlers to prevent fatal uncaught `IllegalStateException: Reply already submitted` exceptions during long video renders.
+* **Notification Rate-Limiting:** Implemented percentage deduplication to eliminate SystemServer notification spam and binder queue thrashing during high-speed transcoding.
+* **Same-Directory Staging:** Changed replace-mode temporary render staging to the parent folder rather than internal cache, avoiding flash storage quota limits and enabling atomic filesystem renames.
+* **Instant Automatic Folder Refresh:** Guaranteed Android `MediaScannerConnection` broadcasts across all save modes, and synchronized folder and media library views after trim/merge operations from directory browser, media library, and video player.
 
 ---
 

@@ -58,6 +58,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
   StreamSubscription? _videoParamsSubscription;
   bool _isSwitchingVideo = false;
   bool _hasDeletedAny = false;
+  bool _hasModifiedAny = false;
 
   bool _showControls = true;
   Timer? _hideTimer;
@@ -1188,7 +1189,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        Navigator.pop(context, _hasDeletedAny);
+        Navigator.pop(context, _hasDeletedAny || _hasModifiedAny);
       },
       child: Focus(
         autofocus: true,
@@ -1625,7 +1626,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                         children: [
                           CupertinoButton(
                             padding: EdgeInsets.zero,
-                            onPressed: () => Navigator.pop(context, _hasDeletedAny),
+                            onPressed: () => Navigator.pop(context, _hasDeletedAny || _hasModifiedAny),
                             child: const Icon(CupertinoIcons.chevron_back, color: Colors.white, size: 28),
                           ),
                           const SizedBox(width: 8),
@@ -1733,7 +1734,7 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                               tooltip: 'More options',
                               color: AppleColors.darkElevated,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              onSelected: (val) {
+                              onSelected: (val) async {
                                 switch (val) {
                                   case 'open_with':
                                     if (_currentIndex < _playlist.length) {
@@ -1745,12 +1746,18 @@ class _UniversalVideoPlayerScreenState extends State<UniversalVideoPlayerScreen>
                                       _mediaService.pause();
                                       final currentNode = _playlist[_currentIndex];
                                       final vfs = widget.vfs ?? LocalVfs();
-                                      Navigator.push(
+                                      final changed = await Navigator.push<bool>(
                                         context,
                                         CupertinoPageRoute(
                                           builder: (_) => VideoTrimScreen(node: currentNode, vfs: vfs),
                                         ),
                                       );
+                                      if (changed == true && mounted) {
+                                        setState(() {
+                                          _hasModifiedAny = true;
+                                        });
+                                        _playVideoAtIndex(_currentIndex);
+                                      }
                                     }
                                     break;
                                   case 'pip':

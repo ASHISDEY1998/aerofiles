@@ -41,7 +41,6 @@ class _VideoMergeDialogState extends State<VideoMergeDialog> {
 
   Future<void> _handleStartMerge() async {
     final paths = _videos.map((n) => n.path).toList();
-    Navigator.of(context).pop(false);
 
     final result = await VideoRenderProgressDialog.show(
       context,
@@ -56,6 +55,7 @@ class _VideoMergeDialogState extends State<VideoMergeDialog> {
     );
 
     if (result != null && mounted) {
+      Navigator.of(context).pop(true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Merged video saved: ${p.basename(result)}'),

@@ -16,6 +16,7 @@ import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.InAppMuxer
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import java.io.File
@@ -71,30 +72,67 @@ class VideoEditorHelper(private val context: Context) {
                     outputFile.delete()
                 }
 
+                // Determine target dimensions from input video to ensure even dimensions
+                val meta = getVideoMetadata(inputPath)
+                var targetWidth = (meta["width"] as? Number)?.toInt() ?: 1280
+                var targetHeight = (meta["height"] as? Number)?.toInt() ?: 720
+                val rotation = (meta["rotation"] as? Number)?.toInt() ?: 0
+
+                if (rotation == 90 || rotation == 270) {
+                    val tmp = targetWidth
+                    targetWidth = targetHeight
+                    targetHeight = tmp
+                }
+
+                if (targetWidth <= 0) targetWidth = 1280
+                if (targetHeight <= 0) targetHeight = 720
+                // Ensure even dimensions required by H.264 video encoders
+                if (targetWidth % 2 != 0) targetWidth -= 1
+                if (targetHeight % 2 != 0) targetHeight -= 1
+
+                val presentationEffect = Presentation.createForWidthAndHeight(
+                    targetWidth,
+                    targetHeight,
+                    Presentation.LAYOUT_SCALE_TO_FIT
+                )
+
+                val compositionEffects = Effects(
+                    emptyList(),
+                    listOf(presentationEffect)
+                )
+
                 val mediaItem = MediaItem.Builder()
                     .setUri(Uri.fromFile(inputFile))
                     .setClippingConfiguration(
                         MediaItem.ClippingConfiguration.Builder()
                             .setStartPositionMs(startMs)
                             .setEndPositionMs(endMs)
+                            .setStartsAtKeyFrame(false)
                             .build()
                     )
                     .build()
 
                 val editedItem = EditedMediaItem.Builder(mediaItem).build()
+                val sequence = EditedMediaItemSequence(editedItem)
+                val composition = Composition.Builder(sequence)
+                    .setEffects(compositionEffects)
+                    .experimentalSetForceAudioTrack(true)
+                    .build()
+
                 val progressHolder = ProgressHolder()
 
                 val transformer = Transformer.Builder(context)
                     .setLooper(Looper.getMainLooper())
                     .setVideoMimeType(MimeTypes.VIDEO_H264)
                     .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                    .setMuxerFactory(InAppMuxer.Factory.Builder().build())
                     .setEncoderFactory(
                         DefaultEncoderFactory.Builder(context)
                             .setEnableFallback(true)
                             .build()
                     )
                     .addListener(object : Transformer.Listener {
-                        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                        override fun onCompleted(comp: Composition, exportResult: ExportResult) {
                             isRunning = false
                             progressRunnable?.let { handler.removeCallbacks(it) }
                             progressRunnable = null
@@ -105,7 +143,7 @@ class VideoEditorHelper(private val context: Context) {
                         }
 
                         override fun onError(
-                            composition: Composition,
+                            comp: Composition,
                             exportResult: ExportResult,
                             exportException: ExportException
                         ) {
@@ -116,7 +154,15 @@ class VideoEditorHelper(private val context: Context) {
                             try {
                                 outputFile.delete()
                             } catch (_: Throwable) {}
-                            onError(exportException.message ?: "Trimming failed")
+
+                            val errorDetails = buildString {
+                                append(exportException.message ?: "Trimming failed")
+                                exportException.cause?.let { cause ->
+                                    append(": ")
+                                    append(cause.message ?: cause.javaClass.simpleName)
+                                }
+                            }
+                            onError(errorDetails)
                         }
                     })
                     .build()
@@ -124,21 +170,27 @@ class VideoEditorHelper(private val context: Context) {
                 currentTransformer = transformer
 
                 progressRunnable = object : Runnable {
+                    private var lastProgress = -1
                     override fun run() {
                         if (!isRunning || currentTransformer == null) return
-                        val state = currentTransformer?.getProgress(progressHolder)
-                        if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
-                            val p = progressHolder.progress.coerceIn(0, 100)
-                            onProgress(p)
-                        }
+                        try {
+                            val state = currentTransformer?.getProgress(progressHolder)
+                            if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
+                                val p = progressHolder.progress.coerceIn(0, 100)
+                                if (p != lastProgress) {
+                                    lastProgress = p
+                                    onProgress(p)
+                                }
+                            }
+                        } catch (_: Throwable) {}
                         if (isRunning) {
-                            handler.postDelayed(this, 100)
+                            handler.postDelayed(this, 150)
                         }
                     }
                 }
-                handler.post(progressRunnable!!)
 
-                transformer.start(editedItem, outputPath)
+                transformer.start(composition, outputPath)
+                handler.post(progressRunnable!!)
             } catch (e: Throwable) {
                 isRunning = false
                 progressRunnable?.let { handler.removeCallbacks(it) }
@@ -227,13 +279,14 @@ class VideoEditorHelper(private val context: Context) {
                     .setLooper(Looper.getMainLooper())
                     .setVideoMimeType(MimeTypes.VIDEO_H264)
                     .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                    .setMuxerFactory(InAppMuxer.Factory.Builder().build())
                     .setEncoderFactory(
                         DefaultEncoderFactory.Builder(context)
                             .setEnableFallback(true)
                             .build()
                     )
                     .addListener(object : Transformer.Listener {
-                        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                        override fun onCompleted(comp: Composition, exportResult: ExportResult) {
                             isRunning = false
                             progressRunnable?.let { handler.removeCallbacks(it) }
                             progressRunnable = null
@@ -244,7 +297,7 @@ class VideoEditorHelper(private val context: Context) {
                         }
 
                         override fun onError(
-                            composition: Composition,
+                            comp: Composition,
                             exportResult: ExportResult,
                             exportException: ExportException
                         ) {
@@ -255,7 +308,15 @@ class VideoEditorHelper(private val context: Context) {
                             try {
                                 outputFile.delete()
                             } catch (_: Throwable) {}
-                            onError(exportException.message ?: "Merging failed")
+
+                            val errorDetails = buildString {
+                                append(exportException.message ?: "Merging failed")
+                                exportException.cause?.let { cause ->
+                                    append(": ")
+                                    append(cause.message ?: cause.javaClass.simpleName)
+                                }
+                            }
+                            onError(errorDetails)
                         }
                     })
                     .build()
@@ -263,21 +324,27 @@ class VideoEditorHelper(private val context: Context) {
                 currentTransformer = transformer
 
                 progressRunnable = object : Runnable {
+                    private var lastProgress = -1
                     override fun run() {
                         if (!isRunning || currentTransformer == null) return
-                        val state = currentTransformer?.getProgress(progressHolder)
-                        if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
-                            val p = progressHolder.progress.coerceIn(0, 100)
-                            onProgress(p)
-                        }
+                        try {
+                            val state = currentTransformer?.getProgress(progressHolder)
+                            if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
+                                val p = progressHolder.progress.coerceIn(0, 100)
+                                if (p != lastProgress) {
+                                    lastProgress = p
+                                    onProgress(p)
+                                }
+                            }
+                        } catch (_: Throwable) {}
                         if (isRunning) {
-                            handler.postDelayed(this, 100)
+                            handler.postDelayed(this, 150)
                         }
                     }
                 }
-                handler.post(progressRunnable!!)
 
                 transformer.start(composition, outputPath)
+                handler.post(progressRunnable!!)
             } catch (e: Throwable) {
                 isRunning = false
                 progressRunnable?.let { handler.removeCallbacks(it) }

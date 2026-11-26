@@ -255,19 +255,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
         ),
       );
       if (deleted == true && mounted) {
-        final existing = <VfsNode>[];
-        for (final item in _currentItems) {
-          if (await File(item.path).exists()) {
-            existing.add(item);
-          }
-        }
-        setState(() {
-          _currentItems = existing;
-          if (_selectedFolderGroup != null &&
-              !existing.any((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath)) {
-            _selectedFolderGroup = null;
-          }
-        });
+        _refreshCategory(folderHint: p.dirname(node.path));
       }
     } else if (node.isImage) {
       final allImages = _displayItems.where((e) => e.isImage).toList();
@@ -283,19 +271,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
         ),
       );
       if (deleted == true && mounted) {
-        final existing = <VfsNode>[];
-        for (final item in _currentItems) {
-          if (await File(item.path).exists()) {
-            existing.add(item);
-          }
-        }
-        setState(() {
-          _currentItems = existing;
-          if (_selectedFolderGroup != null &&
-              !existing.any((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath)) {
-            _selectedFolderGroup = null;
-          }
-        });
+        _refreshCategory(folderHint: p.dirname(node.path));
       }
     } else if (node.isAudio) {
       final audioItems = _displayItems.where((e) => e.isAudio).toList();
@@ -311,19 +287,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
         ),
       );
       if (deleted == true && mounted) {
-        final existing = <VfsNode>[];
-        for (final item in _currentItems) {
-          if (await File(item.path).exists()) {
-            existing.add(item);
-          }
-        }
-        setState(() {
-          _currentItems = existing;
-          if (_selectedFolderGroup != null &&
-              !existing.any((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath)) {
-            _selectedFolderGroup = null;
-          }
-        });
+        _refreshCategory(folderHint: p.dirname(node.path));
       }
     } else {
       try {
@@ -407,11 +371,7 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
       ),
     );
     if (changed == true && mounted) {
-      setState(() {
-        _currentItems.removeWhere((item) => !File(item.path).existsSync() && !Directory(item.path).existsSync());
-        _selectedPaths.clear();
-        _isSelectionMode = false;
-      });
+      _refreshCategory(folderHint: p.dirname(node.path));
     }
   }
 
@@ -421,12 +381,47 @@ class _CategoryBrowserScreenState extends State<CategoryBrowserScreen> {
       orderedVideos: nodes,
     );
     if (changed && mounted) {
-      setState(() {
-        _currentItems.removeWhere((item) => !File(item.path).existsSync() && !Directory(item.path).existsSync());
-        _selectedPaths.clear();
-        _isSelectionMode = false;
-      });
+      final hint = nodes.isNotEmpty ? p.dirname(nodes.first.path) : null;
+      _refreshCategory(folderHint: hint);
     }
+  }
+
+  void _refreshCategory({String? folderHint}) {
+    if (folderHint != null) {
+      try {
+        final dir = Directory(folderHint);
+        if (dir.existsSync()) {
+          final existingPaths = _currentItems.map((e) => e.path).toSet();
+          for (final entity in dir.listSync(followLinks: false)) {
+            if (entity is File && !existingPaths.contains(entity.path)) {
+              try {
+                final stat = entity.statSync();
+                final newNode = VfsNode(
+                  path: entity.path,
+                  name: p.basename(entity.path),
+                  size: stat.size,
+                  isDirectory: false,
+                  modified: stat.modified,
+                );
+                if (newNode.category.name.toLowerCase() == widget.title.toLowerCase() || newNode.isVideo) {
+                  _currentItems.add(newNode);
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    setState(() {
+      _currentItems.removeWhere((item) => !File(item.path).existsSync() && !Directory(item.path).existsSync());
+      _currentItems.sort((a, b) => b.modified.compareTo(a.modified));
+      if (_selectedFolderGroup != null &&
+          !_currentItems.any((e) => p.dirname(e.path) == _selectedFolderGroup!.folderPath)) {
+        _selectedFolderGroup = null;
+      }
+      _selectedPaths.clear();
+      _isSelectionMode = false;
+    });
   }
 
   Future<void> _handleBatchDelete() async {

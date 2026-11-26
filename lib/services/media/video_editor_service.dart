@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import '../log_service.dart';
 import '../recycle_bin_service.dart';
 import '../settings_service.dart';
@@ -133,9 +132,9 @@ class VideoEditorService {
       final isReplacing = saveOption == VideoSaveOption.replaceOriginal;
 
       if (isReplacing) {
-        final cacheDir = await getTemporaryDirectory();
+        final parentDir = p.dirname(inputPath);
         final dateSuffix = DateFormat('yyyyMMdd_HHmmss_SSS').format(DateTime.now());
-        renderingOutputPath = p.join(cacheDir.path, 'aerofiles_trim_tmp_$dateSuffix.mp4');
+        renderingOutputPath = p.join(parentDir, '.aerofiles_trim_tmp_$dateSuffix.mp4');
         targetOutputPath = inputPath;
       } else {
         targetOutputPath = generateTrimmedOutputPath(inputPath);
@@ -161,19 +160,25 @@ class VideoEditorService {
       if (isReplacing) {
         final tempRenderedFile = File(renderedPath);
         if (await tempRenderedFile.exists()) {
-          // Backup/overwrite original file safely
           final originalFile = File(targetOutputPath);
           if (await originalFile.exists()) {
             await originalFile.delete();
           }
-          await tempRenderedFile.copy(targetOutputPath);
           try {
-            await tempRenderedFile.delete();
-          } catch (_) {}
-          // Update Android MediaScanner so gallery and media library update immediately
-          await _storageChannel.invokeMethod('scanFile', {'path': targetOutputPath});
+            await tempRenderedFile.rename(targetOutputPath);
+          } catch (_) {
+            await tempRenderedFile.copy(targetOutputPath);
+            try {
+              await tempRenderedFile.delete();
+            } catch (_) {}
+          }
         }
       }
+
+      // Always update Android MediaStore so folders, gallery and media library update immediately
+      try {
+        await _storageChannel.invokeMethod('scanFile', {'path': targetOutputPath});
+      } catch (_) {}
 
       LogService.instance.info('VIDEO_EDITOR', 'Trim successfully completed: $targetOutputPath');
       return targetOutputPath;
@@ -211,9 +216,8 @@ class VideoEditorService {
       String finalOutputPath;
 
       if (isReplacing) {
-        final cacheDir = await getTemporaryDirectory();
         final dateSuffix = DateFormat('yyyyMMdd_HHmmss_SSS').format(DateTime.now());
-        renderingOutputPath = p.join(cacheDir.path, 'aerofiles_merge_tmp_$dateSuffix.mp4');
+        renderingOutputPath = p.join(targetDir, '.aerofiles_merge_tmp_$dateSuffix.mp4');
         finalOutputPath = inputPaths.first;
       } else {
         finalOutputPath = generateMergedOutputPath(targetDir);
@@ -242,10 +246,14 @@ class VideoEditorService {
           if (await firstFile.exists()) {
             await firstFile.delete();
           }
-          await tempRenderedFile.copy(finalOutputPath);
           try {
-            await tempRenderedFile.delete();
-          } catch (_) {}
+            await tempRenderedFile.rename(finalOutputPath);
+          } catch (_) {
+            await tempRenderedFile.copy(finalOutputPath);
+            try {
+              await tempRenderedFile.delete();
+            } catch (_) {}
+          }
 
           // Remove subsequent merged source files according to recycle bin settings
           final settings = SettingsService.instance;
@@ -268,10 +276,13 @@ class VideoEditorService {
             }
           }
 
-          // Scan final merged output
-          await _storageChannel.invokeMethod('scanFile', {'path': finalOutputPath});
         }
       }
+
+      // Always update Android MediaStore so folders, gallery and media library update immediately
+      try {
+        await _storageChannel.invokeMethod('scanFile', {'path': finalOutputPath});
+      } catch (_) {}
 
       LogService.instance.info('VIDEO_EDITOR', 'Merge successfully completed: $finalOutputPath');
       return finalOutputPath;

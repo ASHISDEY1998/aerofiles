@@ -10,11 +10,11 @@ import 'package:aerofiles/screens/player/video_merge_dialog.dart';
 
 void main() {
   group('AppUpdateService Versioning Tests', () {
-    test('Detects newer remote version v2.2.4 > v2.2.3', () {
+    test('Detects newer remote version v2.2.6 > v2.2.5', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.4',
-        localVersion: '2.2.3',
-        localBuildNumber: '27',
+        remoteTag: 'v2.2.6',
+        localVersion: '2.2.5',
+        localBuildNumber: '29',
         remotePublishedAt: DateTime.now(),
       );
       expect(hasUpdate, isTrue);
@@ -22,20 +22,20 @@ void main() {
 
     test('Detects identical versions with same build as no update', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.4',
-        localVersion: '2.2.4',
-        localBuildNumber: '28',
+        remoteTag: 'v2.2.6',
+        localVersion: '2.2.6',
+        localBuildNumber: '30',
         remotePublishedAt: DateTime.now(),
-        releaseTitle: 'AeroFiles v2.2.4 (Build 28)',
+        releaseTitle: 'AeroFiles v2.2.6 (Build 30)',
       );
       expect(hasUpdate, isFalse);
     });
 
     test('Detects newer build number when version string matches', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.4+29',
-        localVersion: '2.2.4',
-        localBuildNumber: '28',
+        remoteTag: 'v2.2.6+31',
+        localVersion: '2.2.6',
+        localBuildNumber: '30',
         remotePublishedAt: DateTime.now(),
       );
       expect(hasUpdate, isTrue);
