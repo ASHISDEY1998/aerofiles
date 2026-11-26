@@ -79,8 +79,10 @@ class _VideoMergeDialogState extends State<VideoMergeDialog> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final totalBytes = _videos.fold<int>(0, (sum, v) => sum + v.size);
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.72,
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.72,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -303,6 +305,7 @@ class _VideoMergeDialogState extends State<VideoMergeDialog> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

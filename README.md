@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.4_(arm64_35MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.5_(arm64_35MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 📲 Direct Downloads (v2.2.4 / Build 28)
+## 📲 Direct Downloads (v2.2.5 / Build 29)
 
 Download the official standalone release for your device architecture:
 
@@ -175,6 +175,21 @@ Download the official standalone release for your device architecture:
 ### 🔄 13. Smart Version Detection & Upgrade Loop Elimination (v2.2.2)
 * **Accurate Version Check Logic:** Eliminated false-positive update alerts (e.g. `v2.2.1 ➔ v2.2.1`) caused by stale hardcoded timestamps. An update is now strictly offered only when remote SemVer or build number is higher.
 * **Dynamic Sidebar Versioning:** Replaced hardcoded version strings in the tablet navigation sidebar and license screens with live metadata from `PackageInfo`.
+
+---
+
+### 🎵 14. In-App Universal Audio Player & Configurable App Lock Timeout (v2.2.4)
+* **Dedicated In-App Audio Player Screen:** Integrated universal audio player supporting MP3, FLAC, AAC, WAV, OGG, and M4A with animated spinning album art, scrubber, play/pause, and headphone remote controls.
+* **Open With External Player Support:** Long-press on any audio track provides an "Open With..." intent chooser to open files in external audio players or apps.
+* **Configurable App Lock Timeout:** Choose when biometric authentication is required: Immediately, 30 Seconds, 1 Minute, or Only on Device Manual Lock.
+
+---
+
+### ✂️ 15. Video Trimming & Merging Native Pipeline & UI Architecture (v2.2.5)
+* **Underline & Font Rendering Fixes:** Removed yellow double underlines in `VideoRenderProgressDialog` and `VideoMergeDialog` by wrapping modals in `Material` ancestors, restoring authentic Cupertino frosted-glass styling and crisp typography.
+* **Synchronous Native Cancel Guard:** Fixed transformer cancellation race condition in `VideoEditorHelper.kt` where an asynchronous looper cancel Runnable aborted newly started trim and merge tasks at 0%.
+* **Universal Resolution & Aspect-Ratio Scaling:** Integrated `androidx.media3.effect.Presentation` with `LAYOUT_SCALE_TO_FIT` and `DefaultEncoderFactory` fallback so merging videos of varying dimensions, framerates, and aspect ratios succeeds smoothly without MediaCodec failure.
+* **Audio Track Normalization:** Added silence synthesis via `experimentalSetForceAudioTrack` to ensure multi-video sequences containing muted or mixed audio streams merge without audio desynchronization.
 
 ---
 

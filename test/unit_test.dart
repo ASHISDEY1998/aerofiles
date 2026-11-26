@@ -1,8 +1,12 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aerofiles/models/vfs_node.dart';
 import 'package:aerofiles/services/security/biometric_service.dart';
 import 'package:aerofiles/services/settings_service.dart';
 import 'package:aerofiles/services/app_update_service.dart';
+import 'package:aerofiles/services/media/video_editor_service.dart';
+import 'package:aerofiles/screens/player/video_render_progress_dialog.dart';
+import 'package:aerofiles/screens/player/video_merge_dialog.dart';
 
 void main() {
   group('AppUpdateService Versioning Tests', () {
@@ -161,6 +165,79 @@ void main() {
       expect(mp4Node.isVideo, isTrue);
       expect(mp4Node.isAudio, isFalse);
       expect(mp4Node.isImage, isFalse);
+    });
+  });
+
+  group('Video Editor Path & Save Option Tests', () {
+    test('generateTrimmedOutputPath generates formatted output path', () {
+      final input = '/storage/emulated/0/DCIM/Camera/video.mp4';
+      final output = VideoEditorService.instance.generateTrimmedOutputPath(input);
+      expect(output.startsWith('/storage/emulated/0/DCIM/Camera/video_trimmed_'), isTrue);
+      expect(output.endsWith('.mp4'), isTrue);
+    });
+
+    test('generateMergedOutputPath generates formatted output path', () {
+      final dir = '/storage/emulated/0/DCIM/Camera';
+      final output = VideoEditorService.instance.generateMergedOutputPath(dir);
+      expect(output.startsWith('/storage/emulated/0/DCIM/Camera/merged_video_'), isTrue);
+      expect(output.endsWith('.mp4'), isTrue);
+    });
+
+    test('VideoSaveOption enum has keepOriginal and replaceOriginal', () {
+      expect(VideoSaveOption.values.contains(VideoSaveOption.keepOriginal), isTrue);
+      expect(VideoSaveOption.values.contains(VideoSaveOption.replaceOriginal), isTrue);
+    });
+  });
+
+  group('Video Editor Dialogs Material & UI Tests', () {
+    testWidgets('VideoRenderProgressDialog has Material ancestor and renders without error', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoRenderProgressDialog(
+            title: 'Trimming Video...',
+            subtitle: 'Exporting trimmed clip to folder',
+            task: (_) async => '/path/to/trimmed.mp4',
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(Material), findsWidgets);
+      expect(find.text('Trimming Video...'), findsOneWidget);
+      expect(find.text('Hardware Accelerated'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    testWidgets('VideoMergeDialog has Material ancestor and renders without error', (tester) async {
+      final sampleVideos = [
+        VfsNode(
+          path: '/storage/emulated/0/Movies/clip1.mp4',
+          name: 'clip1.mp4',
+          size: 1024 * 1024 * 10,
+          modified: DateTime.now(),
+          isDirectory: false,
+        ),
+        VfsNode(
+          path: '/storage/emulated/0/Movies/clip2.mp4',
+          name: 'clip2.mp4',
+          size: 1024 * 1024 * 20,
+          modified: DateTime.now(),
+          isDirectory: false,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VideoMergeDialog(orderedVideos: sampleVideos),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(Material), findsWidgets);
+      expect(find.text('Merge Videos (2)'), findsOneWidget);
+      expect(find.text('Keep Originals'), findsOneWidget);
+      expect(find.text('Replace Originals'), findsOneWidget);
+      expect(find.text('Merge 2 Videos'), findsOneWidget);
     });
   });
 }

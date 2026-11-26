@@ -7,9 +7,13 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.effect.Presentation
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
+import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
@@ -22,15 +26,21 @@ class VideoEditorHelper(private val context: Context) {
     private var progressRunnable: Runnable? = null
     private var isRunning = false
 
+    private fun internalCancel() {
+        try {
+            isRunning = false
+            progressRunnable?.let { handler.removeCallbacks(it) }
+            progressRunnable = null
+            currentTransformer?.cancel()
+            currentTransformer = null
+        } catch (_: Throwable) {}
+    }
+
     fun cancel() {
-        handler.post {
-            try {
-                isRunning = false
-                progressRunnable?.let { handler.removeCallbacks(it) }
-                progressRunnable = null
-                currentTransformer?.cancel()
-                currentTransformer = null
-            } catch (_: Throwable) {}
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            internalCancel()
+        } else {
+            handler.post { internalCancel() }
         }
     }
 
@@ -44,14 +54,14 @@ class VideoEditorHelper(private val context: Context) {
         onError: (String) -> Unit
     ) {
         handler.post {
-            cancel()
+            internalCancel()
             isRunning = true
 
             try {
                 val inputFile = File(inputPath)
                 if (!inputFile.exists()) {
-                    onError("Source file does not exist")
                     isRunning = false
+                    onError("Source file does not exist")
                     return@post
                 }
 
@@ -72,18 +82,25 @@ class VideoEditorHelper(private val context: Context) {
                     .build()
 
                 val editedItem = EditedMediaItem.Builder(mediaItem).build()
-                val sequence = EditedMediaItemSequence(editedItem)
-                val composition = Composition.Builder(sequence).build()
-
                 val progressHolder = ProgressHolder()
 
                 val transformer = Transformer.Builder(context)
+                    .setLooper(Looper.getMainLooper())
+                    .setVideoMimeType(MimeTypes.VIDEO_H264)
+                    .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                    .setEncoderFactory(
+                        DefaultEncoderFactory.Builder(context)
+                            .setEnableFallback(true)
+                            .build()
+                    )
                     .addListener(object : Transformer.Listener {
                         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                             isRunning = false
                             progressRunnable?.let { handler.removeCallbacks(it) }
+                            progressRunnable = null
                             currentTransformer = null
                             MediaScannerConnection.scanFile(context, arrayOf(outputPath), null, null)
+                            onProgress(100)
                             onComplete(outputPath)
                         }
 
@@ -94,6 +111,7 @@ class VideoEditorHelper(private val context: Context) {
                         ) {
                             isRunning = false
                             progressRunnable?.let { handler.removeCallbacks(it) }
+                            progressRunnable = null
                             currentTransformer = null
                             try {
                                 outputFile.delete()
@@ -110,7 +128,8 @@ class VideoEditorHelper(private val context: Context) {
                         if (!isRunning || currentTransformer == null) return
                         val state = currentTransformer?.getProgress(progressHolder)
                         if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
-                            onProgress(progressHolder.progress)
+                            val p = progressHolder.progress.coerceIn(0, 100)
+                            onProgress(p)
                         }
                         if (isRunning) {
                             handler.postDelayed(this, 100)
@@ -119,10 +138,11 @@ class VideoEditorHelper(private val context: Context) {
                 }
                 handler.post(progressRunnable!!)
 
-                transformer.start(composition, outputPath)
+                transformer.start(editedItem, outputPath)
             } catch (e: Throwable) {
                 isRunning = false
                 progressRunnable?.let { handler.removeCallbacks(it) }
+                progressRunnable = null
                 currentTransformer = null
                 onError(e.message ?: "Failed to start trim")
             }
@@ -137,20 +157,20 @@ class VideoEditorHelper(private val context: Context) {
         onError: (String) -> Unit
     ) {
         handler.post {
-            cancel()
+            internalCancel()
             isRunning = true
 
             try {
                 if (inputPaths.isEmpty()) {
-                    onError("No input videos provided")
                     isRunning = false
+                    onError("No input videos provided")
                     return@post
                 }
 
                 for (p in inputPaths) {
                     if (!File(p).exists()) {
-                        onError("Source file does not exist: $p")
                         isRunning = false
+                        onError("Source file does not exist: $p")
                         return@post
                     }
                 }
@@ -161,23 +181,65 @@ class VideoEditorHelper(private val context: Context) {
                     outputFile.delete()
                 }
 
+                // Determine target width and height from the first video
+                val firstMeta = getVideoMetadata(inputPaths.first())
+                var targetWidth = (firstMeta["width"] as? Number)?.toInt() ?: 1280
+                var targetHeight = (firstMeta["height"] as? Number)?.toInt() ?: 720
+                val rotation = (firstMeta["rotation"] as? Number)?.toInt() ?: 0
+
+                // If portrait via rotation metadata, swap dimensions
+                if (rotation == 90 || rotation == 270) {
+                    val tmp = targetWidth
+                    targetWidth = targetHeight
+                    targetHeight = tmp
+                }
+
+                if (targetWidth <= 0) targetWidth = 1280
+                if (targetHeight <= 0) targetHeight = 720
+                if (targetWidth % 2 != 0) targetWidth -= 1
+                if (targetHeight % 2 != 0) targetHeight -= 1
+
+                val presentationEffect = Presentation.createForWidthAndHeight(
+                    targetWidth,
+                    targetHeight,
+                    Presentation.LAYOUT_SCALE_TO_FIT
+                )
+
+                val compositionEffects = Effects(
+                    emptyList(),
+                    listOf(presentationEffect)
+                )
+
                 val editedItems = inputPaths.map { path ->
                     val mediaItem = MediaItem.fromUri(Uri.fromFile(File(path)))
                     EditedMediaItem.Builder(mediaItem).build()
                 }
 
                 val sequence = EditedMediaItemSequence(editedItems)
-                val composition = Composition.Builder(sequence).build()
+                val composition = Composition.Builder(sequence)
+                    .setEffects(compositionEffects)
+                    .experimentalSetForceAudioTrack(true)
+                    .build()
 
                 val progressHolder = ProgressHolder()
 
                 val transformer = Transformer.Builder(context)
+                    .setLooper(Looper.getMainLooper())
+                    .setVideoMimeType(MimeTypes.VIDEO_H264)
+                    .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                    .setEncoderFactory(
+                        DefaultEncoderFactory.Builder(context)
+                            .setEnableFallback(true)
+                            .build()
+                    )
                     .addListener(object : Transformer.Listener {
                         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                             isRunning = false
                             progressRunnable?.let { handler.removeCallbacks(it) }
+                            progressRunnable = null
                             currentTransformer = null
                             MediaScannerConnection.scanFile(context, arrayOf(outputPath), null, null)
+                            onProgress(100)
                             onComplete(outputPath)
                         }
 
@@ -188,6 +250,7 @@ class VideoEditorHelper(private val context: Context) {
                         ) {
                             isRunning = false
                             progressRunnable?.let { handler.removeCallbacks(it) }
+                            progressRunnable = null
                             currentTransformer = null
                             try {
                                 outputFile.delete()
@@ -204,7 +267,8 @@ class VideoEditorHelper(private val context: Context) {
                         if (!isRunning || currentTransformer == null) return
                         val state = currentTransformer?.getProgress(progressHolder)
                         if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
-                            onProgress(progressHolder.progress)
+                            val p = progressHolder.progress.coerceIn(0, 100)
+                            onProgress(p)
                         }
                         if (isRunning) {
                             handler.postDelayed(this, 100)
@@ -217,6 +281,7 @@ class VideoEditorHelper(private val context: Context) {
             } catch (e: Throwable) {
                 isRunning = false
                 progressRunnable?.let { handler.removeCallbacks(it) }
+                progressRunnable = null
                 currentTransformer = null
                 onError(e.message ?: "Failed to start merge")
             }

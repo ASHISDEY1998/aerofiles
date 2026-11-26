@@ -99,9 +99,11 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
           _handleCancel();
         }
       },
-      child: Center(
-        child: Container(
-          width: 320,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Center(
+          child: Container(
+            width: 320,
           margin: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
@@ -290,6 +292,7 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

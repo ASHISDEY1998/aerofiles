@@ -899,6 +899,9 @@ class MainActivity : FlutterFragmentActivity() {
                                 videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to progress
                                 ))
+                                methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to progress
+                                ))
                                 updateTransferNotification("Trimming Video", "Rendering: $progress%", progress, 100)
                             }
                         },
@@ -906,6 +909,9 @@ class MainActivity : FlutterFragmentActivity() {
                             runOnUiThread {
                                 stopTransferNotification()
                                 videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to 100
+                                ))
+                                methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to 100
                                 ))
                                 result.success(outPath)
@@ -942,6 +948,9 @@ class MainActivity : FlutterFragmentActivity() {
                                 videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to progress
                                 ))
+                                methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to progress
+                                ))
                                 updateTransferNotification("Merging Videos", "Rendering: $progress%", progress, 100)
                             }
                         },
@@ -949,6 +958,9 @@ class MainActivity : FlutterFragmentActivity() {
                             runOnUiThread {
                                 stopTransferNotification()
                                 videoMethodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
+                                    "progress" to 100
+                                ))
+                                methodChannel?.invokeMethod("onVideoProcessProgress", mapOf(
                                     "progress" to 100
                                 ))
                                 result.success(outPath)
