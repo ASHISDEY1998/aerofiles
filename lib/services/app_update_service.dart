@@ -248,8 +248,6 @@ class AppUpdateService {
   void promptUpdate(BuildContext context, AppUpdateInfo info) {
     if (_isDialogShowing) return;
     if (!info.hasUpdate) return;
-    // Safety check: Never show update dialog if current and latest versions are identical
-    if (info.currentVersion == info.latestVersion) return;
     _isDialogShowing = true;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
