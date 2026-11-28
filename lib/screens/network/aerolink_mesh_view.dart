@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/aerolink_models.dart';
 import '../../services/network/aerolink_service.dart';
 import '../../services/vfs/aerolink_vfs.dart';
@@ -52,6 +53,186 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
 
   void _openAboutSheet() {
     AeroLinkAboutSheet.show(context);
+  }
+
+  void _showPinConfigDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Column(
+          children: [
+            const Icon(CupertinoIcons.lock_shield_fill, color: AppleColors.systemBlue, size: 28),
+            const SizedBox(height: 6),
+            Text(
+              'PIN: ${_service.pairingPin}',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 3,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+          ],
+        ),
+        message: const Text(
+          'Nearby devices need this 6-digit PIN to pair and connect with your device over local Wi-Fi.',
+        ),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _promptCustomPin();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.pencil, size: 18, color: AppleColors.systemBlue),
+                SizedBox(width: 8),
+                Text('Change PIN...'),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _service.regeneratePin();
+              if (mounted) {
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('New PIN generated: ${_service.pairingPin}'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.arrow_2_circlepath, size: 18, color: AppleColors.systemBlue),
+                SizedBox(width: 8),
+                Text('Regenerate Random PIN'),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Clipboard.setData(ClipboardData(text: _service.pairingPin));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('PIN copied to clipboard'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.doc_on_doc, size: 18, color: AppleColors.systemBlue),
+                SizedBox(width: 8),
+                Text('Copy PIN'),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openSharesSheet();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.folder_badge_person_crop, size: 18, color: AppleColors.systemBlue),
+                SizedBox(width: 8),
+                Text('Shared Folders & Settings...'),
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  void _promptCustomPin() {
+    final controller = TextEditingController(text: _service.pairingPin);
+    String? errorText;
+
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => CupertinoAlertDialog(
+          title: const Text('Set Pairing PIN'),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Enter a 6-digit numeric PIN for nearby devices to pair with this device.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                CupertinoTextField(
+                  controller: controller,
+                  placeholder: '6 digits',
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  maxLength: 6,
+                  autofocus: true,
+                  style: const TextStyle(fontSize: 22, letterSpacing: 4, fontWeight: FontWeight.bold),
+                  onChanged: (val) {
+                    if (errorText != null) {
+                      setDialogState(() => errorText = null);
+                    }
+                  },
+                ),
+                if (errorText != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    errorText!,
+                    style: const TextStyle(color: AppleColors.systemRed, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              child: const Text('Save'),
+              onPressed: () async {
+                final text = controller.text.trim();
+                if (text.length != 6 || int.tryParse(text) == null) {
+                  setDialogState(() => errorText = 'Please enter exactly 6 digits');
+                  return;
+                }
+                final ok = await _service.setPairingPin(text);
+                if (ok && mounted && ctx.mounted) {
+                  Navigator.pop(ctx);
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('PIN updated to ${_service.pairingPin}'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _handleDeviceTap(AeroLinkDevice device) async {
@@ -297,7 +478,9 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                                   ),
                                   const SizedBox(height: 1),
                                   Text(
-                                    isActive ? 'Active on Local Wi-Fi' : 'Direct Device-to-Device Sharing',
+                                    isActive
+                                        ? 'Active on Local Wi-Fi • ${shares.length} shared'
+                                        : 'Direct Device-to-Device Sharing',
                                     style: TextStyle(
                                       color: isActive ? AppleColors.systemGreen : AppleColors.textSecondary,
                                       fontSize: 11,
@@ -320,43 +503,42 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          isActive
-                              ? '${_service.deviceName} • ${shares.length} shared'
-                              : 'Transfer and stream without cloud or internet',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isActive ? (isDark ? Colors.white70 : Colors.black87) : AppleColors.textSecondary,
-                            fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      CupertinoButton(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        minimumSize: Size.zero,
-                        color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
-                        borderRadius: BorderRadius.circular(12),
-                        onPressed: _openSharesSheet,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(CupertinoIcons.slider_horizontal_3, size: 12, color: AppleColors.systemBlue),
-                            const SizedBox(width: 5),
-                            Text(
-                              'PIN: ${_service.pairingPin}',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppleColors.systemBlue),
+                  const SizedBox(height: 14),
+                  Center(
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      minimumSize: Size.zero,
+                      color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                      borderRadius: BorderRadius.circular(16),
+                      onPressed: _showPinConfigDialog,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(CupertinoIcons.lock_shield_fill, size: 15, color: AppleColors.systemBlue),
+                          const SizedBox(width: 8),
+                          Text(
+                            'PIN: ${_service.pairingPin}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                              color: isDark ? Colors.white : AppleColors.textPrimaryLight,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: AppleColors.systemBlue.withValues(alpha: 0.18),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(CupertinoIcons.gear_alt_fill, size: 12, color: AppleColors.systemBlue),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),

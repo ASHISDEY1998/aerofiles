@@ -154,6 +154,16 @@ class AeroLinkService {
     await _prefs.setString('aerolink_pairing_pin', _pairingPin);
   }
 
+  Future<bool> setPairingPin(String newPin) async {
+    final clean = newPin.trim();
+    if (clean.length == 6 && int.tryParse(clean) != null) {
+      _pairingPin = clean;
+      await _prefs.setString('aerolink_pairing_pin', _pairingPin);
+      return true;
+    }
+    return false;
+  }
+
   Future<bool> addShare({required String name, required String localPath}) async {
     final isDir = Directory(localPath).existsSync();
     final isFile = File(localPath).existsSync();

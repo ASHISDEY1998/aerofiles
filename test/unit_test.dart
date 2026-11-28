@@ -26,18 +26,18 @@ void main() {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
         remoteTag: 'v2.2.8',
         localVersion: '2.2.8',
-        localBuildNumber: '33',
+        localBuildNumber: '34',
         remotePublishedAt: DateTime.now(),
-        releaseTitle: 'AeroFiles v2.2.8 (Build 33)',
+        releaseTitle: 'AeroFiles v2.2.8 (Build 34)',
       );
       expect(hasUpdate, isFalse);
     });
 
     test('Detects newer build number when version string matches', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.8+34',
+        remoteTag: 'v2.2.8+35',
         localVersion: '2.2.8',
-        localBuildNumber: '33',
+        localBuildNumber: '34',
         remotePublishedAt: DateTime.now(),
       );
       expect(hasUpdate, isTrue);

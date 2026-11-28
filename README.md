@@ -27,7 +27,7 @@
 
 ---
 
-## 📲 Direct Downloads (v2.2.8 / Build 33)
+## 📲 Direct Downloads (v2.2.8 / Build 34)
 
 Download the official standalone release for your device architecture:
 
