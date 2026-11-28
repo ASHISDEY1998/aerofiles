@@ -224,7 +224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                'Private Local & Network File Manager',
+                                'High-Speed Local & Network Storage',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
@@ -572,7 +572,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildRowItem(
                         icon: _buildSquircleIcon(CupertinoIcons.waveform_path_ecg, AppleColors.systemOrange),
                         title: 'Diagnostic Logging',
-                        subtitle: 'Record app events, network activity, and errors for debugging',
+                        subtitle: 'Record system events for support',
                         trailing: CupertinoSwitch(
                           value: _logService.isLoggingEnabled,
                           activeTrackColor: AppleColors.systemBlue,
@@ -604,7 +604,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _buildRowItem(
                           icon: _buildSquircleIcon(CupertinoIcons.paperplane_fill, AppleColors.systemGreen),
                           title: 'Send Diagnostic Logs',
-                          subtitle: 'Upload cloud link, share file, or copy',
+                          subtitle: 'Share or export diagnostics',
                           trailing: _isUploadingLog
                               ? const CupertinoActivityIndicator(radius: 8)
                               : const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
@@ -630,7 +630,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildRowItem(
                         icon: _buildSquircleIcon(CupertinoIcons.photo_fill, AppleColors.systemPink),
                         title: 'Clear Thumbnail Cache',
-                        subtitle: 'Free disk space used by video thumbnails',
+                        subtitle: 'Free storage used by image & video caches',
                         trailing: const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),
                         onTap: () async {
                           await ThumbnailService.instance.clearAll();
@@ -656,7 +656,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildRowItem(
                         icon: _buildSquircleIcon(CupertinoIcons.arrow_clockwise_circle_fill, AppleColors.systemBlue),
                         title: 'Check for Updates',
-                        subtitle: 'Auto-update directly from GitHub releases',
+                        subtitle: 'Check for latest release',
                         trailing: _isCheckingUpdate
                             ? const CupertinoActivityIndicator(radius: 8)
                             : const Icon(CupertinoIcons.chevron_right, size: 14, color: AppleColors.textTertiary),

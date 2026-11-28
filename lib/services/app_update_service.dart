@@ -278,7 +278,9 @@ class AppUpdateService {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'v${info.currentVersion}  ➔  v${info.latestVersion}',
+                  info.currentVersion != info.latestVersion
+                      ? 'v${info.currentVersion}  ➔  v${info.latestVersion}'
+                      : 'v${info.latestVersion}  (New Build)',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppleColors.systemBlue,

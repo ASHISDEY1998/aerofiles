@@ -8,14 +8,15 @@ import 'package:aerofiles/services/app_update_service.dart';
 import 'package:aerofiles/services/media/video_editor_service.dart';
 import 'package:aerofiles/screens/player/video_render_progress_dialog.dart';
 import 'package:aerofiles/screens/player/video_merge_dialog.dart';
+import 'package:aerofiles/screens/network/aerolink_about_sheet.dart';
 
 void main() {
   group('AppUpdateService Versioning Tests', () {
-    test('Detects newer remote version v2.2.7 > v2.2.6', () {
+    test('Detects newer remote version v2.2.8 > v2.2.7', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.7',
-        localVersion: '2.2.6',
-        localBuildNumber: '30',
+        remoteTag: 'v2.2.8',
+        localVersion: '2.2.7',
+        localBuildNumber: '31',
         remotePublishedAt: DateTime.now(),
       );
       expect(hasUpdate, isTrue);
@@ -23,20 +24,20 @@ void main() {
 
     test('Detects identical versions with same build as no update', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.7',
-        localVersion: '2.2.7',
-        localBuildNumber: '31',
+        remoteTag: 'v2.2.8',
+        localVersion: '2.2.8',
+        localBuildNumber: '32',
         remotePublishedAt: DateTime.now(),
-        releaseTitle: 'AeroFiles v2.2.7 (Build 31)',
+        releaseTitle: 'AeroFiles v2.2.8 (Build 32)',
       );
       expect(hasUpdate, isFalse);
     });
 
     test('Detects newer build number when version string matches', () {
       final hasUpdate = AppUpdateService.isUpdateAvailable(
-        remoteTag: 'v2.2.7+32',
-        localVersion: '2.2.7',
-        localBuildNumber: '31',
+        remoteTag: 'v2.2.8+33',
+        localVersion: '2.2.8',
+        localBuildNumber: '32',
         remotePublishedAt: DateTime.now(),
       );
       expect(hasUpdate, isTrue);
@@ -205,7 +206,7 @@ void main() {
       await tester.pump();
       expect(find.byType(Material), findsWidgets);
       expect(find.text('Trimming Video...'), findsOneWidget);
-      expect(find.text('Hardware Accelerated'), findsOneWidget);
+      expect(find.text('Processing'), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
 
       // Complete the task and verify the success alert & tick state
@@ -248,6 +249,31 @@ void main() {
       expect(find.text('Keep Originals'), findsOneWidget);
       expect(find.text('Replace Originals'), findsOneWidget);
       expect(find.text('Merge 2 Videos'), findsOneWidget);
+    });
+
+    testWidgets('AeroLinkAboutSheet renders informative Apple-standard content', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AeroLinkAboutSheet(),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('AeroLink Mesh'), findsWidgets);
+      expect(find.text('Direct Local Mesh Network'), findsOneWidget);
+      expect(find.text('WHAT IS AEROLINK?'), findsOneWidget);
+      expect(find.text('WHEN IS IT HANDY?'), findsOneWidget);
+      expect(find.text('Offline & Travel'), findsOneWidget);
+      expect(find.text('Gigabit LAN Speed for 4K Videos'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
     });
   });
 }

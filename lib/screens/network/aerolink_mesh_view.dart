@@ -7,6 +7,7 @@ import '../../services/vfs/local_vfs.dart';
 import '../../theme/apple_theme.dart';
 import '../../widgets/apple_card.dart';
 import '../local/directory_browser_screen.dart';
+import 'aerolink_about_sheet.dart';
 import 'aerolink_dialogs.dart';
 
 class AeroLinkMeshView extends StatefulWidget {
@@ -47,6 +48,10 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
     ).then((_) {
       if (mounted) setState(() {});
     });
+  }
+
+  void _openAboutSheet() {
+    AeroLinkAboutSheet.show(context);
   }
 
   Future<void> _handleDeviceTap(AeroLinkDevice device) async {
@@ -260,23 +265,44 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                               child: const Icon(CupertinoIcons.folder_fill_badge_person_crop, color: Colors.white, size: 20),
                             ),
                             const SizedBox(width: 12),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'AeroLink Mesh',
-                                    style: TextStyle(
-                                      color: AppleColors.textPrimary,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'AeroLink Mesh',
+                                        style: TextStyle(
+                                          color: isDark ? Colors.white : AppleColors.textPrimaryLight,
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      CupertinoButton(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: Size.zero,
+                                        onPressed: _openAboutSheet,
+                                        child: const Icon(
+                                          CupertinoIcons.info_circle,
+                                          size: 17,
+                                          color: AppleColors.systemBlue,
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                  const SizedBox(height: 1),
                                   Text(
-                                    'Private Device-to-Device Sharing',
-                                    style: TextStyle(color: AppleColors.textSecondary, fontSize: 11),
+                                    isActive ? 'Active on Local Wi-Fi' : 'Direct Device-to-Device Sharing',
+                                    style: TextStyle(
+                                      color: isActive ? AppleColors.systemGreen : AppleColors.textSecondary,
+                                      fontSize: 11,
+                                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                                    ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -294,19 +320,19 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
                           isActive
-                              ? 'Active • ${_service.deviceName} (${shares.length} shared)'
-                              : 'Private peer-to-peer file sharing',
+                              ? '${_service.deviceName} • ${shares.length} shared'
+                              : 'Transfer and stream without cloud or internet',
                           style: TextStyle(
-                            fontSize: 13,
-                            color: isActive ? AppleColors.systemGreen : AppleColors.textSecondary,
-                            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 12,
+                            color: isActive ? (isDark ? Colors.white70 : Colors.black87) : AppleColors.textSecondary,
+                            fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -321,10 +347,10 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(CupertinoIcons.gear_alt, size: 13, color: AppleColors.systemBlue),
+                            const Icon(CupertinoIcons.slider_horizontal_3, size: 12, color: AppleColors.systemBlue),
                             const SizedBox(width: 5),
                             Text(
-                              'Code: ${_service.pairingPin}',
+                              'PIN: ${_service.pairingPin}',
                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppleColors.systemBlue),
                             ),
                           ],
@@ -597,13 +623,13 @@ class _AeroLinkMeshViewState extends State<AeroLinkMeshView> {
                                   const SizedBox(width: 4),
                                 ],
                                 CupertinoButton(
-                                  padding: const EdgeInsets.all(6),
+                                  padding: const EdgeInsets.all(8),
                                   minimumSize: Size.zero,
                                   onPressed: () => _showDeviceOptions(dev),
                                   child: Icon(
-                                    CupertinoIcons.ellipsis_vertical,
+                                    CupertinoIcons.ellipsis,
                                     size: 18,
-                                    color: isDark ? AppleColors.textTertiary : AppleColors.textTertiaryLight,
+                                    color: isDark ? AppleColors.textSecondary : AppleColors.textSecondaryLight,
                                   ),
                                 ),
                               ],

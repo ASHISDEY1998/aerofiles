@@ -288,7 +288,7 @@ class _VideoRenderProgressDialogState extends State<VideoRenderProgressDialog> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            _isSuccess ? 'Saved' : 'Hardware Accelerated',
+                            _isSuccess ? 'Saved' : 'Processing',
                             style: TextStyle(
                               color: _isSuccess
                                   ? AppleColors.systemGreen

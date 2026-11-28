@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ASHISDEY1998/aerofiles/releases/latest/download/AeroFiles-arm64-v8a.apk">
-    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.7_(arm64_35MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Direct_Download-AeroFiles_v2.2.8_(arm64_35MB)-0A84FF?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
 </p>
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 📲 Direct Downloads (v2.2.7 / Build 31)
+## 📲 Direct Downloads (v2.2.8 / Build 32)
 
 Download the official standalone release for your device architecture:
 
